@@ -19,6 +19,10 @@ class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     seat_id = db.Column(db.String(10), db.ForeignKey('seat.id'), nullable=False)
     user_name = db.Column(db.String(100), nullable=False)
+    phone = db.Column(db.String(15))
+    email = db.Column(db.String(100))
+    purpose = db.Column(db.String(50))
+    other_description = db.Column(db.Text)
     shift = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(20), default='pending') # pending, approved
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(IST))
@@ -52,22 +56,27 @@ def get_seats():
     shift = request.args.get('shift', 'morning')
     bookings = Booking.query.filter_by(shift=shift).all()
     
-    # Check for expired bookings
     now = datetime.now(IST)
     for b in bookings:
         if b.expires_at:
-            # Handle naive/aware comparison
             expires = b.expires_at
             if expires.tzinfo is None:
                 expires = IST.localize(expires)
-            
             if expires < now:
                 db.session.delete(b)
                 db.session.commit()
 
-    # Re-fetch after cleaning
     bookings = Booking.query.filter_by(shift=shift).all()
-    booking_data = {b.seat_id: {'user': b.user_name, 'status': b.status} for b in bookings}
+    booking_data = {
+        b.seat_id: {
+            'user': b.user_name, 
+            'status': b.status,
+            'phone': b.phone,
+            'email': b.email,
+            'purpose': b.purpose,
+            'desc': b.other_description
+        } for b in bookings
+    }
     
     seats = Seat.query.order_by(Seat.id).all()
     result = []
@@ -75,7 +84,8 @@ def get_seats():
         result.append({
             'id': s.id,
             'user': booking_data.get(s.id, {}).get('user'),
-            'status': booking_data.get(s.id, {}).get('status')
+            'status': booking_data.get(s.id, {}).get('status'),
+            'details': booking_data.get(s.id)
         })
     return jsonify(result)
 
@@ -90,7 +100,16 @@ def book_seat():
     if existing:
         return jsonify({'success': False, 'message': 'Already booked/requested'}), 400
     
-    new_booking = Booking(seat_id=seat_id, user_name=user_name, shift=shift, status='pending')
+    new_booking = Booking(
+        seat_id=seat_id, 
+        user_name=user_name,
+        phone=data.get('phone'),
+        email=data.get('email'),
+        purpose=data.get('purpose'),
+        other_description=data.get('desc'),
+        shift=shift, 
+        status='pending'
+    )
     db.session.add(new_booking)
     db.session.commit()
     return jsonify({'success': True})
