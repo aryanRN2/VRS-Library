@@ -1,8 +1,11 @@
 import os
+import requests
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import pytz
-import requests
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+
+load_dotenv()
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
