@@ -1,8 +1,19 @@
 {% extends 'base.html' %}
 {% block content %}
 <section class="admin-dashboard">
-    <div class="dashboard-sidebar">
+    <!-- Mobile Header -->
+    <div class="mobile-admin-header">
         <div class="sidebar-brand">
+            <i class="fas fa-shield-halved"></i>
+            <span>VRS Admin</span>
+        </div>
+        <button id="sidebar-toggle" class="glass-btn small">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+
+    <div class="dashboard-sidebar" id="sidebar">
+        <div class="sidebar-brand desktop-only">
             <i class="fas fa-shield-halved"></i>
             <span>VRS Admin</span>
         </div>
@@ -19,7 +30,7 @@
         <div id="overview" class="dash-section">
             <div class="section-header">
                 <h2>System Overview</h2>
-                <span class="date-tag">{{ now }}</span>
+                <span class="date-tag">Dashboard Control</span>
             </div>
             
             <div class="stats-grid">
@@ -70,49 +81,47 @@
             {% endwith %}
 
             <div class="registration-table-container glass-card">
-                <table class="reg-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Contact</th>
-                            <th>Goal / Purpose</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% if pending_users %}
-                            {% for user in pending_users %}
+                <div class="table-responsive">
+                    <table class="reg-table">
+                        <thead>
                             <tr>
-                                <td class="user-cell">
-                                    <div class="avatar">{{ user.name[0]|upper }}</div>
-                                    <span>{{ user.name }}</span>
-                                </td>
-                                <td>
-                                    <div class="contact-info">
-                                        <span><i class="fas fa-envelope"></i> {{ user.email }}</span>
-                                        <span><i class="fas fa-phone"></i> {{ user.phone }}</span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="purpose-badge">{{ user.purpose }}</span>
-                                    {% if user.description %}
-                                    <i class="fas fa-info-circle info-tip" title="{{ user.description }}"></i>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <a href="{{ url_for('approve_user', user_id=user.id) }}" class="action-btn approve">
-                                        Approve
-                                    </a>
-                                </td>
+                                <th>User Profile</th>
+                                <th>Contact & Goal</th>
+                                <th>Actions</th>
                             </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="4" class="empty-msg">No pending registrations at the moment.</td>
-                            </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {% if pending_users %}
+                                {% for user in pending_users %}
+                                <tr>
+                                    <td class="user-cell">
+                                        <div class="avatar">{{ user.name[0]|upper }}</div>
+                                        <div class="user-name-stack">
+                                            <span class="u-name">{{ user.name }}</span>
+                                            <span class="u-username">@{{ user.username }}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="contact-info">
+                                            <span><i class="fas fa-phone"></i> {{ user.phone }}</span>
+                                            <span class="purpose-badge small">{{ user.purpose }}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('approve_user', user_id=user.id) }}" class="action-btn approve">
+                                            Approve
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" class="empty-msg">No pending registrations.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -121,55 +130,74 @@
 <style>
 .admin-dashboard { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; background: #f8fafc; }
 
+/* Mobile Header */
+.mobile-admin-header { display: none; background: #fff; border-bottom: 1px solid #e2e8f0; padding: 1rem; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+
 /* Sidebar */
-.dashboard-sidebar { background: #fff; border-right: 1px solid #e2e8f0; padding: 2rem 1.5rem; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
-.sidebar-brand { display: flex; align-items: center; gap: 0.8rem; font-size: 1.4rem; font-weight: 700; color: var(--accent-color); margin-bottom: 3rem; }
+.dashboard-sidebar { background: #fff; border-right: 1px solid #e2e8f0; padding: 2rem 1.5rem; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; transition: all 0.3s ease; }
+.sidebar-brand { display: flex; align-items: center; gap: 0.8rem; font-size: 1.4rem; font-weight: 700; color: #4285F4; margin-bottom: 3rem; }
 .sidebar-nav { display: flex; flex-direction: column; gap: 0.5rem; }
 .nav-item { display: flex; align-items: center; gap: 1rem; padding: 0.8rem 1.2rem; border-radius: 10px; color: #64748b; text-decoration: none; font-weight: 500; transition: all 0.2s; }
-.nav-item:hover { background: #f1f5f9; color: var(--accent-color); }
+.nav-item:hover { background: #f1f5f9; color: #4285F4; }
 .nav-item.active { background: #eff6ff; color: #2563eb; }
 .nav-item.logout { margin-top: auto; color: #ef4444; }
 
 /* Main Content */
-.dashboard-main { padding: 2.5rem; overflow-y: auto; }
+.dashboard-main { padding: 2.5rem; max-width: 100%; overflow-x: hidden; }
 .section-header { margin-bottom: 2rem; }
 .section-header h2 { font-size: 1.8rem; font-weight: 700; color: #1e293b; margin-bottom: 0.2rem; }
-.section-header p { color: #64748b; }
 
 /* Stats Grid */
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
-.stat-card { background: #fff; padding: 1.5rem; border-radius: 16px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 1.2rem; transition: transform 0.2s; }
-.stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-.stat-icon { width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+.stat-card { background: #fff; padding: 1.5rem; border-radius: 16px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 1.2rem; }
+.stat-icon { width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
 .stat-icon.blue { background: #eff6ff; color: #3b82f6; }
 .stat-icon.yellow { background: #fffbeb; color: #f59e0b; }
 .stat-icon.red { background: #fef2f2; color: #ef4444; }
 .stat-icon.green { background: #f0fdf4; color: #22c55e; }
-.stat-value { display: block; font-size: 1.5rem; font-weight: 700; color: #1e293b; }
-.stat-label { font-size: 0.85rem; color: #64748b; }
+.stat-value { display: block; font-size: 1.4rem; font-weight: 700; color: #1e293b; }
+.stat-label { font-size: 0.8rem; color: #64748b; }
 
 /* Table */
-.registration-table-container { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; }
-.reg-table { width: 100%; border-collapse: collapse; text-align: left; }
-.reg-table th { background: #f8fafc; padding: 1rem 1.5rem; font-size: 0.85rem; font-weight: 600; color: #64748b; border-bottom: 1px solid #e2e8f0; }
-.reg-table td { padding: 1.2rem 1.5rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+.registration-table-container { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; }
+.table-responsive { overflow-x: auto; }
+.reg-table { width: 100%; border-collapse: collapse; min-width: 500px; }
+.reg-table th { background: #f8fafc; padding: 1rem; font-size: 0.8rem; color: #64748b; border-bottom: 1px solid #e2e8f0; text-align: left; }
+.reg-table td { padding: 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
 
 .user-cell { display: flex; align-items: center; gap: 0.8rem; }
-.avatar { width: 35px; height: 35px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #475569; font-size: 0.85rem; }
-.contact-info { display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; color: #64748b; }
-.purpose-badge { background: #f1f5f9; padding: 0.3rem 0.7rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
-.action-btn { padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
-.action-btn.approve { background: #22c55e; color: #fff; }
-.action-btn.approve:hover { background: #16a34a; }
+.user-name-stack { display: flex; flex-direction: column; }
+.u-name { font-weight: 600; color: #1e293b; font-size: 0.9rem; }
+.u-username { font-size: 0.75rem; color: #94a3b8; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0; }
+.contact-info { display: flex; flex-direction: column; gap: 4px; }
+.purpose-badge.small { padding: 2px 6px; font-size: 0.7rem; display: inline-block; width: fit-content; }
 
-.empty-msg { text-align: center; color: #94a3b8; padding: 3rem !important; font-style: italic; }
-.alert { padding: 1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 0.9rem; }
-.alert-success { background: #dcfce7; color: #166534; }
+.action-btn { padding: 0.5rem 0.8rem; border-radius: 8px; text-decoration: none; font-size: 0.8rem; font-weight: 600; transition: 0.2s; white-space: nowrap; }
+.action-btn.approve { background: #22c55e; color: #fff; }
 
 @media (max-width: 1024px) {
     .admin-dashboard { grid-template-columns: 1fr; }
-    .dashboard-sidebar { display: none; }
+    .desktop-only { display: none; }
+    .mobile-admin-header { display: flex; }
+    .dashboard-sidebar { 
+        position: fixed; left: -260px; top: 65px; height: calc(100vh - 65px); width: 260px; 
+        z-index: 1000; box-shadow: 10px 0 30px rgba(0,0,0,0.1); 
+    }
+    .dashboard-sidebar.active { left: 0; }
+    .dashboard-main { padding: 1.5rem; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+@media (max-width: 600px) {
+    .stats-grid { grid-template-columns: 1fr; }
+    .stat-card { padding: 1rem; }
+}
 </style>
+
+<script>
+document.getElementById('sidebar-toggle').onclick = function() {
+    document.getElementById('sidebar').classList.toggle('active');
+};
+</script>
 {% endblock %}
