@@ -20,6 +20,7 @@
         <nav class="sidebar-nav">
             <a href="#overview" class="nav-item active"><i class="fas fa-chart-pie"></i> Overview</a>
             <a href="#registrations" class="nav-item"><i class="fas fa-user-clock"></i> User Approvals</a>
+            <a href="#messaging" class="nav-item"><i class="fas fa-paper-plane"></i> Messaging Center</a>
             <a href="{{ url_for('membership') }}" class="nav-item"><i class="fas fa-couch"></i> Seat Grid</a>
             <a href="{{ url_for('logout') }}" class="nav-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </nav>
@@ -108,9 +109,14 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <a href="{{ url_for('approve_user', user_id=user.id) }}" class="action-btn approve">
-                                            Approve
-                                        </a>
+                                        <div class="action-flex">
+                                            <a href="{{ url_for('approve_user', user_id=user.id) }}" class="action-btn approve">
+                                                Approve
+                                            </a>
+                                            <button onclick="openMessageModal('{{ user.phone }}', '{{ user.name }}')" class="action-btn secondary">
+                                                <i class="fab fa-whatsapp"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -124,8 +130,50 @@
                 </div>
             </div>
         </div>
+
+        <!-- Messaging Center -->
+        <div id="messaging" class="dash-section mt-4 hidden">
+            <div class="section-header">
+                <h2>WhatsApp Messaging Center</h2>
+                <p>Communicate directly with elite members via WhatsApp Cloud API.</p>
+            </div>
+
+            <div class="glass-card messaging-container">
+                <div class="form-group">
+                    <label>Select Recipient</label>
+                    <select id="whatsapp-recipient" class="glass-input">
+                        <option value="">-- Select a User --</option>
+                        {% for user in active_users %}
+                        <option value="{{ user.phone }}" data-name="{{ user.name }}">{{ user.name }} ({{ user.phone }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Message Body</label>
+                    <textarea id="whatsapp-message" class="glass-input" rows="5" placeholder="Type your message here..."></textarea>
+                </div>
+
+                <button id="send-whatsapp-btn" class="premium-btn">
+                    <i class="fab fa-whatsapp"></i>
+                    <span>Send via WhatsApp Cloud API</span>
+                </button>
+            </div>
+        </div>
     </div>
 </section>
+
+<!-- Message Modal (Shortcut) -->
+<div id="message-modal" class="modal hidden">
+    <div class="modal-content glass-card">
+        <h3>Message <span id="msg-user-name"></span></h3>
+        <textarea id="modal-whatsapp-message" class="glass-input" rows="4" placeholder="Your message..."></textarea>
+        <div class="modal-btns">
+            <button id="modal-send-btn" class="premium-btn">Send Now</button>
+            <button class="glass-btn secondary" onclick="closeMessageModal()">Cancel</button>
+        </div>
+    </div>
+</div>
 
 <style>
 .admin-dashboard { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; background: #f8fafc; }
@@ -189,6 +237,21 @@
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+.action-flex { display: flex; gap: 0.5rem; align-items: center; }
+.action-btn.secondary { background: #f1f5f9; color: #64748b; padding: 0.5rem; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
+.action-btn.secondary:hover { background: #e2e8f0; color: #25d366; }
+
+.messaging-container { max-width: 700px; padding: 2rem; }
+.form-group { margin-bottom: 1.5rem; }
+.form-group label { display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem; font-size: 0.9rem; }
+.premium-btn { width: 100%; padding: 1rem; background: linear-gradient(135deg, #25d366, #128c7e); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s; }
+.premium-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(37, 211, 102, 0.2); }
+
+.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+.modal-content { max-width: 450px; width: 90%; padding: 2rem; }
+.modal-btns { display: flex; gap: 1rem; margin-top: 1.5rem; }
+.hidden { display: none !important; }
+
 @media (max-width: 600px) {
     .stats-grid { grid-template-columns: 1fr; }
     .stat-card { padding: 1rem; }
@@ -196,8 +259,91 @@
 </style>
 
 <script>
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.onclick = function(e) {
+        if (this.getAttribute('href').startsWith('#')) {
+            e.preventDefault();
+            const target = this.getAttribute('href').substring(1);
+            
+            // Toggle active class on nav
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Toggle sections
+            document.querySelectorAll('.dash-section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(target).classList.remove('hidden');
+            
+            // Close sidebar on mobile
+            if (window.innerWidth <= 1024) {
+                document.getElementById('sidebar').classList.remove('active');
+            }
+        }
+    };
+});
+
 document.getElementById('sidebar-toggle').onclick = function() {
     document.getElementById('sidebar').classList.toggle('active');
+};
+
+let currentTargetPhone = null;
+
+function openMessageModal(phone, name) {
+    currentTargetPhone = phone;
+    document.getElementById('msg-user-name').innerText = name;
+    document.getElementById('message-modal').classList.remove('hidden');
+}
+
+function closeMessageModal() {
+    document.getElementById('message-modal').classList.add('hidden');
+}
+
+async function sendWhatsApp(phone, message) {
+    if (!message) return alert('Please enter a message');
+    
+    try {
+        const res = await fetch('/api/admin/send_whatsapp', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ phone, message })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Message sent successfully!');
+            return true;
+        } else {
+            alert('Failed to send: ' + data.message);
+            return false;
+        }
+    } catch (e) {
+        alert('Error connecting to API');
+        return false;
+    }
+}
+
+document.getElementById('send-whatsapp-btn').onclick = async function() {
+    const phone = document.getElementById('whatsapp-recipient').value;
+    const message = document.getElementById('whatsapp-message').value;
+    if (!phone) return alert('Please select a recipient');
+    
+    const btn = this;
+    const originalContent = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span>Sending...</span>';
+    
+    const success = await sendWhatsApp(phone, message);
+    
+    btn.disabled = false;
+    btn.innerHTML = originalContent;
+    if (success) document.getElementById('whatsapp-message').value = '';
+};
+
+document.getElementById('modal-send-btn').onclick = async function() {
+    const message = document.getElementById('modal-whatsapp-message').value;
+    const success = await sendWhatsApp(currentTargetPhone, message);
+    if (success) {
+        document.getElementById('modal-whatsapp-message').value = '';
+        closeMessageModal();
+    }
 };
 </script>
 {% endblock %}

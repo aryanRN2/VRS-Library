@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 import pytz
+import requests
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -102,7 +103,50 @@ def admin_dashboard():
     }
     
     pending_users = User.query.filter_by(is_active=False, is_admin=False).order_by(User.id.desc()).all()
-    return render_template('admin_dashboard.html', stats=stats, pending_users=pending_users)
+    active_users = User.query.filter_by(is_active=True, is_admin=False).all()
+    return render_template('admin_dashboard.html', stats=stats, pending_users=pending_users, active_users=active_users)
+
+@app.route('/api/admin/send_whatsapp', methods=['POST'])
+@login_required
+def send_whatsapp():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    data = request.get_json()
+    phone = data.get('phone')
+    message = data.get('message')
+    
+    # Clean phone number (must be in international format without + or 00)
+    phone = "".join(filter(str.isdigit, phone))
+    if len(phone) == 10: phone = "91" + phone # Assume India if 10 digits
+    
+    token = os.environ.get('WHATSAPP_TOKEN')
+    phone_id = os.environ.get('WHATSAPP_PHONE_ID')
+    
+    if not token or not phone_id:
+        return jsonify({'success': False, 'message': 'WhatsApp credentials not configured.'}), 500
+
+    url = f"https://graph.facebook.com/v17.0/{phone_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    # Note: Using text message. For production, you often need templates for first-time outreach.
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": phone,
+        "type": "text",
+        "text": {"body": message}
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        res_data = response.json()
+        if response.status_code == 200:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'message': res_data.get('error', {}).get('message', 'Unknown error')}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/admin/approve_user/<int:user_id>')
 @login_required
