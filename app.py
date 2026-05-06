@@ -142,6 +142,7 @@ def membership():
     return render_template('membership.html')
 
 @app.route('/api/seats')
+@login_required
 def get_seats():
     shift = request.args.get('shift', 'morning')
     is_admin = current_user.is_authenticated and current_user.is_admin
