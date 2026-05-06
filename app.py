@@ -27,7 +27,7 @@ class User(db.Model, UserMixin):
     phone = db.Column(db.String(20), nullable=False)
     purpose = db.Column(db.String(100))
     description = db.Column(db.Text)
-    is_active = db.Column(db.Boolean, default=False) # Needs admin approval
+    is_active = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
 
 class Seat(db.Model):
@@ -41,7 +41,6 @@ class Booking(db.Model):
     status = db.Column(db.String(20), default='pending') 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(IST))
     expires_at = db.Column(db.DateTime)
-    
     user = db.relationship('User', backref='bookings')
 
 class WaitingRoom(db.Model):
@@ -61,13 +60,41 @@ with app.app_context():
                 new_seat = Seat(id=f"A{col}-{row}")
                 db.session.add(new_seat)
         
-        # Create default admin if not exists
         if not User.query.filter_by(email='admin@vrs.com').first():
             hashed_pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
             admin = User(email='admin@vrs.com', password=hashed_pw, name='VRS Admin', 
                          phone='0000000000', is_active=True, is_admin=True)
             db.session.add(admin)
         db.session.commit()
+
+# --- Admin Dashboard Routes ---
+@app.route('/admin/dashboard')
+@login_required
+def admin_dashboard():
+    if not current_user.is_admin:
+        return redirect(url_for('membership'))
+    
+    stats = {
+        'pending_users': User.query.filter_by(is_active=False, is_admin=False).count(),
+        'active_members': User.query.filter_by(is_active=True, is_admin=False).count(),
+        'total_seats': Seat.query.count(),
+        'pending_bookings': Booking.query.filter_by(status='pending').count(),
+        'active_bookings': Booking.query.filter_by(status='approved').count()
+    }
+    
+    pending_users = User.query.filter_by(is_active=False, is_admin=False).order_by(User.id.desc()).all()
+    return render_template('admin_dashboard.html', stats=stats, pending_users=pending_users)
+
+@app.route('/admin/approve_user/<int:user_id>')
+@login_required
+def approve_user(user_id):
+    if not current_user.is_admin: return redirect(url_for('index'))
+    user = User.query.get(user_id)
+    if user:
+        user.is_active = True
+        db.session.commit()
+        flash(f'Account for {user.name} approved successfully!', 'success')
+    return redirect(url_for('admin_dashboard'))
 
 # --- Auth Routes ---
 @app.route('/register', methods=['GET', 'POST'])
@@ -77,17 +104,10 @@ def register():
         if User.query.filter_by(email=email).first():
             flash('Email already exists.', 'danger')
             return redirect(url_for('register'))
-        
         hashed_pw = bcrypt.generate_password_hash(request.form.get('password')).decode('utf-8')
-        new_user = User(
-            email=email,
-            password=hashed_pw,
-            name=request.form.get('name'),
-            phone=request.form.get('phone'),
-            purpose=request.form.get('purpose'),
-            description=request.form.get('description'),
-            is_active=False # Pending approval
-        )
+        new_user = User(email=email, password=hashed_pw, name=request.form.get('name'),
+                        phone=request.form.get('phone'), purpose=request.form.get('purpose'),
+                        description=request.form.get('description'), is_active=False)
         db.session.add(new_user)
         db.session.commit()
         flash('Registration successful! Please wait for admin approval.', 'success')
@@ -103,7 +123,7 @@ def login():
                 flash('Your account is pending admin approval.', 'warning')
                 return redirect(url_for('login'))
             login_user(user)
-            return redirect(url_for('membership'))
+            return redirect(url_for('admin_dashboard') if user.is_admin else url_for('membership'))
         flash('Login failed. Check email and password.', 'danger')
     return render_template('login.html')
 
@@ -112,12 +132,12 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
-# --- App Routes ---
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/membership')
+@login_required
 def membership():
     return render_template('membership.html')
 
@@ -125,8 +145,6 @@ def membership():
 def get_seats():
     shift = request.args.get('shift', 'morning')
     is_admin = current_user.is_authenticated and current_user.is_admin
-    
-    # Check for expired bookings
     now = datetime.now(IST)
     all_bookings = Booking.query.filter_by(shift=shift).all()
     for b in all_bookings:
@@ -163,31 +181,12 @@ def book_seat():
     data = request.get_json()
     seat_id = data.get('seat_id')
     shift = data.get('shift')
-    
     if Booking.query.filter_by(seat_id=seat_id, shift=shift, status='approved').first():
         return jsonify({'success': False, 'message': 'Seat already booked.'}), 400
-    
     new_booking = Booking(seat_id=seat_id, user_id=current_user.id, shift=shift, status='pending')
     db.session.add(new_booking)
     db.session.commit()
     return jsonify({'success': True})
-
-@app.route('/admin/approvals')
-@login_required
-def admin_approvals():
-    if not current_user.is_admin: return redirect(url_for('index'))
-    pending_users = User.query.filter_by(is_active=False).all()
-    return render_template('admin_approvals.html', users=pending_users)
-
-@app.route('/admin/approve_user/<int:user_id>')
-@login_required
-def approve_user(user_id):
-    if not current_user.is_admin: return redirect(url_for('index'))
-    user = User.query.get(user_id)
-    if user:
-        user.is_active = True
-        db.session.commit()
-    return redirect(url_for('admin_approvals'))
 
 @app.route('/api/admin/approve', methods=['POST'])
 @login_required
@@ -204,6 +203,25 @@ def approve_booking():
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False}), 404
+
+@app.route('/api/admin/remove', methods=['POST'])
+@login_required
+def remove_seat():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    data = request.get_json()
+    booking = Booking.query.filter_by(seat_id=data.get('seat_id'), shift=data.get('shift'), status='approved').first()
+    if booking:
+        wait = WaitingRoom(user_name=booking.user.name, removed_from_seat=booking.seat_id)
+        db.session.add(wait)
+        db.session.delete(booking)
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 404
+
+@app.route('/api/waiting_room')
+def get_waiting_room():
+    waiting = WaitingRoom.query.all()
+    return jsonify([{'user_name': w.user_name, 'seat': w.removed_from_seat} for w in waiting])
 
 if __name__ == '__main__':
     app.run(debug=True, port=9090)
