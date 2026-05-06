@@ -12,7 +12,13 @@ app.config['SECRET_KEY'] = 'vrs-secret-key'
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-if os.environ.get('VERCEL'):
+if os.environ.get('DATABASE_URL'):
+    # Fix for SQLAlchemy 1.4+ which requires 'postgresql://' instead of 'postgres://'
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+elif os.environ.get('VERCEL'):
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/library.db'
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'library.db')
