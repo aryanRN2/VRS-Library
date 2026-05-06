@@ -55,15 +55,21 @@ def get_seats():
     # Check for expired bookings
     now = datetime.now(IST)
     for b in bookings:
-        if b.expires_at and b.expires_at.replace(tzinfo=IST) < now:
-            db.session.delete(b)
-            db.session.commit()
+        if b.expires_at:
+            # Handle naive/aware comparison
+            expires = b.expires_at
+            if expires.tzinfo is None:
+                expires = IST.localize(expires)
+            
+            if expires < now:
+                db.session.delete(b)
+                db.session.commit()
 
     # Re-fetch after cleaning
     bookings = Booking.query.filter_by(shift=shift).all()
     booking_data = {b.seat_id: {'user': b.user_name, 'status': b.status} for b in bookings}
     
-    seats = Seat.query.all()
+    seats = Seat.query.order_by(Seat.id).all()
     result = []
     for s in seats:
         result.append({
@@ -98,7 +104,7 @@ def approve_booking():
     booking = Booking.query.filter_by(seat_id=seat_id, shift=shift, status='pending').first()
     if booking:
         booking.status = 'approved'
-        booking.expires_at = datetime.now(IST) + timedelta(days=30) # 1 month
+        booking.expires_at = datetime.now(IST) + timedelta(days=30)
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False}), 404
