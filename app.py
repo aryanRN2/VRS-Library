@@ -77,10 +77,19 @@ with app.app_context():
                     new_seat = Seat(id=f"A{col}-{row}")
                     db.session.add(new_seat)
             
-            if not User.query.filter_by(username='admin').first():
-                hashed_pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
-                admin = User(username='admin', email='admin@vrs.com', password=hashed_pw, name='VRS Admin', 
-                             phone='0000000000', is_active=True, is_admin=True)
+            if not User.query.filter_by(is_admin=True).first():
+                admin_username = os.environ.get('ADMIN_USER', 'admin')
+                admin_password = os.environ.get('ADMIN_PASS', 'admin123')
+                hashed_pw = bcrypt.generate_password_hash(admin_password).decode('utf-8')
+                admin = User(
+                    username=admin_username, 
+                    email='admin@vrs.com', 
+                    password=hashed_pw, 
+                    name='VRS Admin', 
+                    phone='0000000000', 
+                    is_active=True, 
+                    is_admin=True
+                )
                 db.session.add(admin)
             db.session.commit()
     except Exception as e:
