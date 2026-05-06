@@ -27,7 +27,8 @@
             
             <div class="input-field">
                 <i class="fas fa-lock"></i>
-                <input type="password" name="password" placeholder="Password" required>
+                <input type="password" name="password" id="password" placeholder="Password" required>
+                <i class="fas fa-eye toggle-password" id="togglePassword"></i>
             </div>
 
             <button type="submit" class="premium-btn">
@@ -43,7 +44,32 @@
     </div>
 </section>
 
+<script>
+const togglePassword = document.querySelector('#togglePassword');
+const password = document.querySelector('#password');
+
+togglePassword.addEventListener('click', function (e) {
+    // toggle the type attribute
+    const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+    password.setAttribute('type', type);
+    // toggle the eye slash icon
+    this.classList.toggle('fa-eye-slash');
+});
+</script>
+
 <style>
+.toggle-password {
+    cursor: pointer;
+    margin-left: -30px;
+    margin-right: 0 !important;
+    z-index: 2;
+    color: #aaa;
+    transition: color 0.3s;
+}
+
+.toggle-password:hover {
+    color: var(--accent-color);
+}
 .auth-section {
     padding-top: 80px;
     display: flex;

@@ -32,7 +32,8 @@
                 </div>
                 <div class="input-field">
                     <i class="fas fa-lock"></i>
-                    <input type="password" name="password" placeholder="Create Password" required>
+                    <input type="password" name="password" id="password" placeholder="Create Password" required>
+                    <i class="fas fa-eye toggle-password" id="togglePassword"></i>
                 </div>
             </div>
 
@@ -64,6 +65,18 @@
 </section>
 
 <style>
+.toggle-password {
+    cursor: pointer;
+    margin-left: -30px;
+    margin-right: 0 !important;
+    z-index: 2;
+    color: #aaa;
+    transition: color 0.3s;
+}
+
+.toggle-password:hover {
+    color: var(--accent-color);
+}
 .auth-section {
     padding-top: 80px;
     display: flex;
@@ -166,5 +179,14 @@ document.getElementById('purpose-select').onchange = function() {
     if (this.value === 'Other') desc.classList.remove('hidden');
     else desc.classList.add('hidden');
 };
+
+const togglePassword = document.querySelector('#togglePassword');
+const password = document.querySelector('#password');
+
+togglePassword.addEventListener('click', function (e) {
+    const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+    password.setAttribute('type', type);
+    this.classList.toggle('fa-eye-slash');
+});
 </script>
 {% endblock %}

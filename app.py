@@ -10,10 +10,12 @@ from sqlalchemy import or_
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'vrs-secret-key'
 
+basedir = os.path.abspath(os.path.dirname(__file__))
+
 if os.environ.get('VERCEL'):
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/library.db'
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'library.db')
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -134,15 +136,22 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        login_id = request.form.get('login_id')
+        login_id = request.form.get('login_id').strip()
+        password = request.form.get('password').strip()
         user = User.query.filter((User.username == login_id) | (User.email == login_id)).first()
         
-        if user and bcrypt.check_password_hash(user.password, request.form.get('password')):
-            if not user.is_active:
-                flash('Your account is pending admin approval.', 'warning')
-                return redirect(url_for('login'))
-            login_user(user)
-            return redirect(url_for('admin_dashboard') if user.is_admin else url_for('membership'))
+        if user:
+            if bcrypt.check_password_hash(user.password, password):
+                if not user.is_active:
+                    flash('Your account is pending admin approval.', 'warning')
+                    return redirect(url_for('login'))
+                login_user(user)
+                return redirect(url_for('admin_dashboard') if user.is_admin else url_for('membership'))
+            else:
+                print(f"Password mismatch for user: {login_id}")
+        else:
+            print(f"User not found: {login_id}")
+            
         flash('Login failed. Check your ID and password.', 'danger')
     return render_template('login.html')
 
