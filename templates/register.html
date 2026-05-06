@@ -2,15 +2,38 @@
 {% block content %}
 <section class="auth-section">
     <div class="glass-card auth-container">
-        <h1>Join VRS Library</h1>
-        <p>Register your account and wait for admin approval.</p>
+        <div class="auth-header">
+            <i class="fas fa-user-plus main-icon"></i>
+            <h1>Create Account</h1>
+            <p>Join the VRS Library elite circle.</p>
+        </div>
+
         <form method="POST" class="auth-form">
-            <div class="form-grid">
-                <input type="text" name="name" placeholder="Full Name" required class="glass-input">
-                <input type="email" name="email" placeholder="Email Address" required class="glass-input">
-                <input type="tel" name="phone" placeholder="Phone Number" required class="glass-input">
-                <input type="password" name="password" placeholder="Create Password" required class="glass-input">
-                <select name="purpose" class="glass-input" required id="purpose-select">
+            <div class="input-group">
+                <div class="input-field">
+                    <i class="fas fa-user"></i>
+                    <input type="text" name="name" placeholder="Full Name" required>
+                </div>
+                <div class="input-field">
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" name="email" placeholder="Email Address" required>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <div class="input-field">
+                    <i class="fas fa-phone"></i>
+                    <input type="tel" name="phone" placeholder="Phone Number" required>
+                </div>
+                <div class="input-field">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" name="password" placeholder="Create Password" required>
+                </div>
+            </div>
+
+            <div class="input-field full-width">
+                <i class="fas fa-graduation-cap"></i>
+                <select name="purpose" required id="purpose-select">
                     <option value="" disabled selected>Purpose of Enrollment</option>
                     <option value="Preparation for Govt Job">Preparation for Govt Job</option>
                     <option value="IIT">IIT</option>
@@ -19,22 +42,117 @@
                     <option value="Other">Other</option>
                 </select>
             </div>
-            <textarea name="description" id="other-desc" placeholder="Describe your purpose..." class="glass-input hidden" rows="3"></textarea>
-            <button type="submit" class="glass-btn">Register Account</button>
+
+            <textarea name="description" id="other-desc" placeholder="Tell us more about your goals..." class="glass-input hidden" rows="3"></textarea>
+
+            <button type="submit" class="premium-btn">
+                <span>Register Now</span>
+                <i class="fas fa-arrow-right"></i>
+            </button>
         </form>
-        <p class="auth-footer">Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+
+        <div class="auth-footer">
+            <span>Already part of VRS?</span>
+            <a href="{{ url_for('login') }}">Sign In <i class="fas fa-sign-in-alt"></i></a>
+        </div>
     </div>
 </section>
 
 <style>
-.auth-section { padding-top: 100px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-.auth-container { max-width: 500px; width: 90%; padding: 3rem; text-align: center; }
-.auth-form { margin-top: 2rem; }
-.auth-footer { margin-top: 1.5rem; font-size: 0.9rem; opacity: 0.8; }
-.auth-footer a { color: var(--accent-color); font-weight: 600; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.auth-section {
+    padding-top: 80px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: radial-gradient(circle at top right, rgba(66, 133, 244, 0.05), transparent),
+                radial-gradient(circle at bottom left, rgba(52, 168, 83, 0.05), transparent);
+}
+
+.auth-container {
+    max-width: 550px;
+    width: 95%;
+    padding: 3.5rem;
+    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.auth-header { margin-bottom: 2.5rem; text-align: center; }
+.main-icon { font-size: 2.5rem; color: var(--accent-color); margin-bottom: 1rem; }
+.auth-header h1 { font-size: 2.2rem; font-weight: 700; color: var(--text-color); margin-bottom: 0.5rem; }
+.auth-header p { color: #666; font-size: 1rem; }
+
+.input-group { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-bottom: 1.2rem; }
+
+.input-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 0 1.2rem;
+    transition: all 0.3s ease;
+}
+
+.input-field:focus-within {
+    border-color: var(--accent-color);
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(66, 133, 244, 0.1);
+}
+
+.input-field i { color: #aaa; margin-right: 1rem; font-size: 1.1rem; }
+.input-field input, .input-field select {
+    width: 100%;
+    height: 50px;
+    border: none;
+    background: none;
+    outline: none;
+    font-size: 0.95rem;
+    color: var(--text-color);
+    font-family: inherit;
+}
+
+.full-width { grid-column: span 2; margin-bottom: 1.2rem; }
+
+.premium-btn {
+    width: 100%;
+    height: 55px;
+    background: linear-gradient(135deg, #4285F4, #34A853);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+}
+
+.premium-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(66, 133, 244, 0.3);
+}
+
+.auth-footer { margin-top: 2rem; text-align: center; border-top: 1px solid var(--glass-border); padding-top: 1.5rem; font-size: 0.95rem; }
+.auth-footer a { color: var(--accent-color); font-weight: 600; text-decoration: none; margin-left: 5px; }
+
 .hidden { display: none; }
-@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+#other-desc { width: 100%; margin-bottom: 1.2rem; border-radius: 12px; padding: 1rem; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.6); font-family: inherit; outline: none; }
+
+@media (max-width: 600px) {
+    .input-group { grid-template-columns: 1fr; }
+    .full-width { grid-column: span 1; }
+    .auth-container { padding: 2rem; }
+}
 </style>
 
 <script>
