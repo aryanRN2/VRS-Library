@@ -9,7 +9,14 @@ from sqlalchemy import or_
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'vrs-secret-key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
+
+# Vercel compatibility for SQLite
+# Vercel filesystem is read-only, we use /tmp for temporary database if on Vercel
+if os.environ.get('VERCEL'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/library.db'
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -50,24 +57,28 @@ class WaitingRoom(db.Model):
     user_name = db.Column(db.String(100), nullable=False)
     removed_from_seat = db.Column(db.String(10))
 
+# Initialize Database
+with app.app_context():
+    try:
+        db.create_all()
+        if Seat.query.count() == 0:
+            for col in range(1, 5):
+                for row in range(1, 21):
+                    new_seat = Seat(id=f"A{col}-{row}")
+                    db.session.add(new_seat)
+            
+            if not User.query.filter_by(username='admin').first():
+                hashed_pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
+                admin = User(username='admin', email='admin@vrs.com', password=hashed_pw, name='VRS Admin', 
+                             phone='0000000000', is_active=True, is_admin=True)
+                db.session.add(admin)
+            db.session.commit()
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
-with app.app_context():
-    db.create_all()
-    if Seat.query.count() == 0:
-        for col in range(1, 5):
-            for row in range(1, 21):
-                new_seat = Seat(id=f"A{col}-{row}")
-                db.session.add(new_seat)
-        
-        if not User.query.filter_by(username='admin').first():
-            hashed_pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
-            admin = User(username='admin', email='admin@vrs.com', password=hashed_pw, name='VRS Admin', 
-                         phone='0000000000', is_active=True, is_admin=True)
-            db.session.add(admin)
-        db.session.commit()
 
 # --- Admin Dashboard Routes ---
 @app.route('/admin/dashboard')
@@ -111,13 +122,9 @@ def register():
             
         hashed_pw = bcrypt.generate_password_hash(request.form.get('password')).decode('utf-8')
         new_user = User(
-            username=username,
-            email=email, 
-            password=hashed_pw, 
-            name=request.form.get('name'),
-            phone=request.form.get('phone'), 
-            purpose=request.form.get('purpose'),
-            description=request.form.get('description'), 
+            username=username, email=email, password=hashed_pw, 
+            name=request.form.get('name'), phone=request.form.get('phone'), 
+            purpose=request.form.get('purpose'), description=request.form.get('description'), 
             is_active=False
         )
         db.session.add(new_user)
