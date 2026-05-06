@@ -9,7 +9,7 @@
                 {% if current_user.is_authenticated %}
                     <span class="user-welcome">Hello, {{ current_user.name }}</span>
                     {% if current_user.is_admin %}
-                        <a href="{{ url_for('admin_approvals') }}" class="admin-badge link">Manage Users</a>
+                        <a href="{{ url_for('admin_dashboard') }}" class="admin-badge link">Admin Dashboard</a>
                     {% endif %}
                     <a href="{{ url_for('logout') }}" class="logout-link">Logout</a>
                 {% else %}
