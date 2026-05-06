@@ -182,9 +182,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             el.innerHTML = content;
-            if (!seat.status || seat.status === 'available' || seat.status === 'pending') {
+            
+            // Only non-admins can open the booking form
+            if (!isAdmin && (!seat.status || seat.status === 'available' || seat.status === 'pending')) {
                 el.onclick = () => openBooking(seat.id);
+            } else if (isAdmin) {
+                // Admins click to review or manage, never to book
+                if (seat.pending_requests && seat.pending_requests.length > 0) {
+                    el.onclick = () => openMultiReview(seat.pending_requests, seat.id);
+                }
             }
+            
             grid.appendChild(el);
         });
     }
