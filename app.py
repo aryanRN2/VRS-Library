@@ -160,6 +160,10 @@ def index():
 @app.route('/membership')
 @login_required
 def membership():
+    if current_user.is_admin:
+        logout_user()
+        flash('Logged out as admin to allow membership browsing.', 'info')
+        return redirect(url_for('membership'))
     return render_template('membership.html')
 
 @app.route('/api/seats')
