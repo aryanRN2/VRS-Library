@@ -198,6 +198,14 @@ def get_seats():
         if b.status == 'approved': seat_map[b.seat_id]['approved'] = data
         else: seat_map[b.seat_id]['pending'].append(data)
 
+    # Ensure seats are initialized if they are missing
+    if Seat.query.count() == 0:
+        for col in range(1, 5):
+            for row in range(1, 21):
+                new_seat = Seat(id=f"A{col}-{row}")
+                db.session.add(new_seat)
+        db.session.commit()
+
     seats = Seat.query.order_by(Seat.id).all()
     result = []
     for s in seats:
