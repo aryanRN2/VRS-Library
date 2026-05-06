@@ -54,10 +54,12 @@ def membership():
 @app.route('/api/seats')
 def get_seats():
     shift = request.args.get('shift', 'morning')
-    bookings = Booking.query.filter_by(shift=shift).all()
+    is_admin = request.args.get('admin') == 'true'
     
+    # 1. Check for expired bookings
     now = datetime.now(IST)
-    for b in bookings:
+    all_bookings = Booking.query.filter_by(shift=shift).all()
+    for b in all_bookings:
         if b.expires_at:
             expires = b.expires_at
             if expires.tzinfo is None:
@@ -66,27 +68,49 @@ def get_seats():
                 db.session.delete(b)
                 db.session.commit()
 
+    # 2. Group bookings by seat_id
     bookings = Booking.query.filter_by(shift=shift).all()
-    booking_data = {
-        b.seat_id: {
-            'user': b.user_name, 
-            'status': b.status,
+    seat_map = {}
+    for b in bookings:
+        if b.seat_id not in seat_map:
+            seat_map[b.seat_id] = {'approved': None, 'pending': []}
+        
+        data = {
+            'id': b.id,
+            'user': b.user_name,
             'phone': b.phone,
             'email': b.email,
             'purpose': b.purpose,
-            'desc': b.other_description
-        } for b in bookings
-    }
-    
+            'desc': b.other_description,
+            'status': b.status
+        }
+        
+        if b.status == 'approved':
+            seat_map[b.seat_id]['approved'] = data
+        else:
+            seat_map[b.seat_id]['pending'].append(data)
+
+    # 3. Build Result
     seats = Seat.query.order_by(Seat.id).all()
     result = []
     for s in seats:
-        result.append({
-            'id': s.id,
-            'user': booking_data.get(s.id, {}).get('user'),
-            'status': booking_data.get(s.id, {}).get('status'),
-            'details': booking_data.get(s.id)
-        })
+        state = seat_map.get(s.id, {'approved': None, 'pending': []})
+        
+        # Admin gets full data, User gets simplified
+        if is_admin:
+            result.append({
+                'id': s.id,
+                'status': 'approved' if state['approved'] else ('pending' if state['pending'] else 'available'),
+                'approved_user': state['approved'],
+                'pending_requests': state['pending']
+            })
+        else:
+            # Users see 'Red' if approved, but can still request if 'Pending'
+            result.append({
+                'id': s.id,
+                'status': 'approved' if state['approved'] else 'available',
+                'user': state['approved']['user'] if state['approved'] else None
+            })
     return jsonify(result)
 
 @app.route('/api/book', methods=['POST'])
@@ -96,10 +120,12 @@ def book_seat():
     user_name = data.get('user_name')
     shift = data.get('shift')
     
-    existing = Booking.query.filter_by(seat_id=seat_id, shift=shift).first()
-    if existing:
-        return jsonify({'success': False, 'message': 'Already booked/requested'}), 400
+    # Block if already approved
+    approved = Booking.query.filter_by(seat_id=seat_id, shift=shift, status='approved').first()
+    if approved:
+        return jsonify({'success': False, 'message': 'This seat is already booked.'}), 400
     
+    # Allow multiple pending requests
     new_booking = Booking(
         seat_id=seat_id, 
         user_name=user_name,
@@ -117,17 +143,28 @@ def book_seat():
 @app.route('/api/admin/approve', methods=['POST'])
 def approve_booking():
     data = request.get_json()
-    seat_id = data.get('seat_id')
-    shift = data.get('shift')
-    expiry_str = data.get('expiry_date') 
+    booking_id = data.get('booking_id') # Use unique booking ID now
+    expiry_str = data.get('expiry_date')
     
-    booking = Booking.query.filter_by(seat_id=seat_id, shift=shift, status='pending').first()
-    if booking:
+    booking = Booking.query.get(booking_id)
+    if booking and booking.status == 'pending':
+        # Approve this one
         booking.status = 'approved'
         if expiry_str:
             booking.expires_at = datetime.strptime(expiry_str, '%Y-%m-%d')
         else:
             booking.expires_at = datetime.now(IST).replace(tzinfo=None) + timedelta(days=30)
+        
+        # IMPORTANT: Delete ALL other pending requests for this seat and shift
+        others = Booking.query.filter(
+            Booking.seat_id == booking.seat_id,
+            Booking.shift == booking.shift,
+            Booking.status == 'pending',
+            Booking.id != booking_id
+        ).all()
+        for other in others:
+            db.session.delete(other)
+            
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False}), 404
@@ -138,7 +175,8 @@ def remove_user():
     seat_id = data.get('seat_id')
     shift = data.get('shift')
     
-    booking = Booking.query.filter_by(seat_id=seat_id, shift=shift).first()
+    # Remove the approved one
+    booking = Booking.query.filter_by(seat_id=seat_id, shift=shift, status='approved').first()
     if booking:
         wait = WaitingRoom(user_name=booking.user_name, removed_from_seat=seat_id)
         db.session.add(wait)
