@@ -22,6 +22,11 @@ body {
     line-height: 1.6;
 }
 
+body.static-page {
+    background: radial-gradient(circle at 0% 0%, #ffffff 0%, #f0f4f8 100%);
+    background-attachment: fixed;
+}
+
 #canvas-container {
     position: fixed;
     top: 0;

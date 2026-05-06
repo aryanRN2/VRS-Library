@@ -12,15 +12,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="{{ 'home-page' if request.endpoint == 'index' else 'static-page' }}">
+    {% if request.endpoint == 'index' %}
     <div id="canvas-container"></div>
+    {% endif %}
     
     <main>
         {% block content %}{% endblock %}
     </main>
 
+    {% if request.endpoint == 'index' %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% endif %}
 </body>
 </html>
