@@ -160,7 +160,7 @@ def index():
 @app.route('/membership')
 @login_required
 def membership():
-    if current_user.is_admin:
+    if current_user.is_admin and request.args.get('enroll') == 'true':
         logout_user()
         flash('Logged out as admin to allow membership browsing.', 'info')
         return redirect(url_for('membership'))
