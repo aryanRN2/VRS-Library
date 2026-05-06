@@ -237,12 +237,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.removeSeat = async (id) => {
-        const res = await fetch('/api/admin/remove', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({seat_id: id, shift: currentShift})
-        });
-        if (res.ok) loadSeats();
+        if (confirm(`Are you SURE you want to remove the user from Seat ${id}?`)) {
+            if (confirm(`FINAL WARNING: This will immediately end the session for Seat ${id} and move the user to the Waiting Room. Proceed?`)) {
+                const res = await fetch('/api/admin/remove', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({seat_id: id, shift: currentShift})
+                });
+                if (res.ok) loadSeats();
+            }
+        }
     };
 
     function openBooking(id) {
