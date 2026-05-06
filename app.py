@@ -256,7 +256,15 @@ def get_seats():
     seat_map = {}
     for b in bookings:
         if b.seat_id not in seat_map: seat_map[b.seat_id] = {'approved': None, 'pending': []}
-        data = {'id': b.id, 'user_id': b.user_id, 'user': b.user.name, 'phone': b.user.phone, 'purpose': b.user.purpose, 'status': b.status}
+        data = {
+            'id': b.id, 
+            'user_id': b.user_id, 
+            'user': b.user.name, 
+            'phone': b.user.phone, 
+            'purpose': b.user.purpose, 
+            'status': b.status,
+            'expires_at': b.expires_at.strftime('%d %b %Y') if b.expires_at else 'Permanent'
+        }
         if b.status == 'approved': seat_map[b.seat_id]['approved'] = data
         else: seat_map[b.seat_id]['pending'].append(data)
 

@@ -139,6 +139,9 @@
 .preset-btns { display: flex; gap: 0.5rem; justify-content: center; margin: 0.5rem 0; }
 .preset-btn { background: #f0f0f0; border: 1px solid #ddd; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.75rem; }
 .preset-btn.active { background: var(--accent-color); color: white; }
+.admin-info-box { display: flex; flex-direction: column; gap: 1px; font-size: 0.55rem; color: #fff; opacity: 0.85; margin: 2px 0; }
+.admin-info-box i { font-size: 0.5rem; margin-right: 2px; }
+.admin-action { padding: 4px 8px; font-size: 0.6rem; margin-top: 4px; }
 </style>
 
 <script>
@@ -186,6 +189,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     content += `<div class="request-count">${seat.pending_requests.length} Req</div>`;
                     content += `<button class="admin-action approve" onclick='openMultiReview(${JSON.stringify(seat.pending_requests)}, "${seat.id}")'>Review</button>`;
                 } else if (seat.status === 'approved') {
+                    const app = seat.approved_user;
+                    content += `<div class="admin-info-box">
+                                    <span><i class="fas fa-phone"></i> ${app.phone}</span>
+                                    <span><i class="fas fa-calendar-alt"></i> ${app.expires_at}</span>
+                                </div>`;
                     content += `<button class="admin-action" onclick="removeSeat('${seat.id}')">Remove</button>`;
                 }
             }
