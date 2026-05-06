@@ -156,7 +156,11 @@
 
                 <button id="send-whatsapp-btn" class="premium-btn">
                     <i class="fab fa-whatsapp"></i>
-                    <span>Send via WhatsApp Cloud API</span>
+                    <span>Send via Cloud API</span>
+                </button>
+                <button id="direct-wa-btn" class="premium-btn secondary-wa">
+                    <i class="fas fa-external-link-alt"></i>
+                    <span>Open Direct Chat (No API)</span>
                 </button>
             </div>
         </div>
@@ -169,7 +173,8 @@
         <h3>Message <span id="msg-user-name"></span></h3>
         <textarea id="modal-whatsapp-message" class="glass-input" rows="4" placeholder="Your message..."></textarea>
         <div class="modal-btns">
-            <button id="modal-send-btn" class="premium-btn">Send Now</button>
+            <button id="modal-send-btn" class="premium-btn">Send via API</button>
+            <button id="modal-direct-btn" class="premium-btn secondary-wa">Direct Chat</button>
             <button class="glass-btn secondary" onclick="closeMessageModal()">Cancel</button>
         </div>
     </div>
@@ -244,7 +249,8 @@
 .messaging-container { max-width: 700px; padding: 2rem; }
 .form-group { margin-bottom: 1.5rem; }
 .form-group label { display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem; font-size: 0.9rem; }
-.premium-btn { width: 100%; padding: 1rem; background: linear-gradient(135deg, #25d366, #128c7e); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s; }
+.premium-btn { width: 100%; padding: 1rem; background: linear-gradient(135deg, #25d366, #128c7e); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s; margin-bottom: 0.5rem; }
+.premium-btn.secondary-wa { background: #2563eb; }
 .premium-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(37, 211, 102, 0.2); }
 
 .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
@@ -337,6 +343,19 @@ document.getElementById('send-whatsapp-btn').onclick = async function() {
     if (success) document.getElementById('whatsapp-message').value = '';
 };
 
+document.getElementById('direct-wa-btn').onclick = function() {
+    const phone = document.getElementById('whatsapp-recipient').value;
+    const message = document.getElementById('whatsapp-message').value;
+    if (!phone) return alert('Please select a recipient');
+    
+    // Clean phone number
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+    
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+};
+
 document.getElementById('modal-send-btn').onclick = async function() {
     const message = document.getElementById('modal-whatsapp-message').value;
     const success = await sendWhatsApp(currentTargetPhone, message);
@@ -344,6 +363,16 @@ document.getElementById('modal-send-btn').onclick = async function() {
         document.getElementById('modal-whatsapp-message').value = '';
         closeMessageModal();
     }
+};
+
+document.getElementById('modal-direct-btn').onclick = function() {
+    const message = document.getElementById('modal-whatsapp-message').value;
+    let cleanPhone = currentTargetPhone.replace(/\D/g, '');
+    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+    
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+    closeMessageModal();
 };
 </script>
 {% endblock %}
