@@ -12,7 +12,7 @@ from flask_bcrypt import Bcrypt
 from sqlalchemy import or_
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'vrs-secret-key'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'vrs-secret-key-development-only')
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
