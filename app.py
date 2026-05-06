@@ -1,37 +1,57 @@
 import os
 from datetime import datetime, timedelta
 import pytz
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'vrs-secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
 
 IST = pytz.timezone('Asia/Kolkata')
 
 # Models
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(150), unique=True, nullable=False)
+    password = db.Column(db.String(60), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    phone = db.Column(db.String(20), nullable=False)
+    purpose = db.Column(db.String(100))
+    description = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=False) # Needs admin approval
+    is_admin = db.Column(db.Boolean, default=False)
+
 class Seat(db.Model):
     id = db.Column(db.String(10), primary_key=True)
 
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     seat_id = db.Column(db.String(10), db.ForeignKey('seat.id'), nullable=False)
-    user_name = db.Column(db.String(100), nullable=False)
-    phone = db.Column(db.String(15))
-    email = db.Column(db.String(100))
-    purpose = db.Column(db.String(50))
-    other_description = db.Column(db.Text)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     shift = db.Column(db.String(20), nullable=False)
-    status = db.Column(db.String(20), default='pending') # pending, approved
+    status = db.Column(db.String(20), default='pending') 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(IST))
     expires_at = db.Column(db.DateTime)
+    
+    user = db.relationship('User', backref='bookings')
 
 class WaitingRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_name = db.Column(db.String(100), nullable=False)
     removed_from_seat = db.Column(db.String(10))
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 with app.app_context():
     db.create_all()
@@ -40,155 +60,150 @@ with app.app_context():
             for row in range(1, 21):
                 new_seat = Seat(id=f"A{col}-{row}")
                 db.session.add(new_seat)
+        
+        # Create default admin if not exists
+        if not User.query.filter_by(email='admin@vrs.com').first():
+            hashed_pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
+            admin = User(email='admin@vrs.com', password=hashed_pw, name='VRS Admin', 
+                         phone='0000000000', is_active=True, is_admin=True)
+            db.session.add(admin)
         db.session.commit()
 
+# --- Auth Routes ---
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        if User.query.filter_by(email=email).first():
+            flash('Email already exists.', 'danger')
+            return redirect(url_for('register'))
+        
+        hashed_pw = bcrypt.generate_password_hash(request.form.get('password')).decode('utf-8')
+        new_user = User(
+            email=email,
+            password=hashed_pw,
+            name=request.form.get('name'),
+            phone=request.form.get('phone'),
+            purpose=request.form.get('purpose'),
+            description=request.form.get('description'),
+            is_active=False # Pending approval
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Registration successful! Please wait for admin approval.', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(email=request.form.get('email')).first()
+        if user and bcrypt.check_password_hash(user.password, request.form.get('password')):
+            if not user.is_active:
+                flash('Your account is pending admin approval.', 'warning')
+                return redirect(url_for('login'))
+            login_user(user)
+            return redirect(url_for('membership'))
+        flash('Login failed. Check email and password.', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
+# --- App Routes ---
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/membership')
 def membership():
-    is_admin = request.args.get('admin') == 'true'
-    return render_template('membership.html', is_admin=is_admin)
+    return render_template('membership.html')
 
 @app.route('/api/seats')
 def get_seats():
     shift = request.args.get('shift', 'morning')
-    is_admin = request.args.get('admin') == 'true'
+    is_admin = current_user.is_authenticated and current_user.is_admin
     
-    # 1. Check for expired bookings
+    # Check for expired bookings
     now = datetime.now(IST)
     all_bookings = Booking.query.filter_by(shift=shift).all()
     for b in all_bookings:
         if b.expires_at:
             expires = b.expires_at
-            if expires.tzinfo is None:
-                expires = IST.localize(expires)
+            if expires.tzinfo is None: expires = IST.localize(expires)
             if expires < now:
                 db.session.delete(b)
                 db.session.commit()
 
-    # 2. Group bookings by seat_id
     bookings = Booking.query.filter_by(shift=shift).all()
     seat_map = {}
     for b in bookings:
-        if b.seat_id not in seat_map:
-            seat_map[b.seat_id] = {'approved': None, 'pending': []}
-        
-        data = {
-            'id': b.id,
-            'user': b.user_name,
-            'phone': b.phone,
-            'email': b.email,
-            'purpose': b.purpose,
-            'desc': b.other_description,
-            'status': b.status
-        }
-        
-        if b.status == 'approved':
-            seat_map[b.seat_id]['approved'] = data
-        else:
-            seat_map[b.seat_id]['pending'].append(data)
+        if b.seat_id not in seat_map: seat_map[b.seat_id] = {'approved': None, 'pending': []}
+        data = {'id': b.id, 'user': b.user.name, 'phone': b.user.phone, 'purpose': b.user.purpose, 'status': b.status}
+        if b.status == 'approved': seat_map[b.seat_id]['approved'] = data
+        else: seat_map[b.seat_id]['pending'].append(data)
 
-    # 3. Build Result
     seats = Seat.query.order_by(Seat.id).all()
     result = []
     for s in seats:
         state = seat_map.get(s.id, {'approved': None, 'pending': []})
-        
-        # Admin gets full data, User gets simplified
         if is_admin:
-            result.append({
-                'id': s.id,
-                'status': 'approved' if state['approved'] else ('pending' if state['pending'] else 'available'),
-                'approved_user': state['approved'],
-                'pending_requests': state['pending']
-            })
+            result.append({'id': s.id, 'status': 'approved' if state['approved'] else ('pending' if state['pending'] else 'available'),
+                           'approved_user': state['approved'], 'pending_requests': state['pending']})
         else:
-            # Users see 'Red' if approved, but can still request if 'Pending'
-            result.append({
-                'id': s.id,
-                'status': 'approved' if state['approved'] else 'available',
-                'user': state['approved']['user'] if state['approved'] else None
-            })
+            result.append({'id': s.id, 'status': 'approved' if state['approved'] else 'available',
+                           'user': state['approved']['user'] if state['approved'] else None})
     return jsonify(result)
 
 @app.route('/api/book', methods=['POST'])
+@login_required
 def book_seat():
     data = request.get_json()
     seat_id = data.get('seat_id')
-    user_name = data.get('user_name')
     shift = data.get('shift')
     
-    # Block if already approved
-    approved = Booking.query.filter_by(seat_id=seat_id, shift=shift, status='approved').first()
-    if approved:
-        return jsonify({'success': False, 'message': 'This seat is already booked.'}), 400
+    if Booking.query.filter_by(seat_id=seat_id, shift=shift, status='approved').first():
+        return jsonify({'success': False, 'message': 'Seat already booked.'}), 400
     
-    # Allow multiple pending requests
-    new_booking = Booking(
-        seat_id=seat_id, 
-        user_name=user_name,
-        phone=data.get('phone'),
-        email=data.get('email'),
-        purpose=data.get('purpose'),
-        other_description=data.get('desc'),
-        shift=shift, 
-        status='pending'
-    )
+    new_booking = Booking(seat_id=seat_id, user_id=current_user.id, shift=shift, status='pending')
     db.session.add(new_booking)
     db.session.commit()
     return jsonify({'success': True})
 
+@app.route('/admin/approvals')
+@login_required
+def admin_approvals():
+    if not current_user.is_admin: return redirect(url_for('index'))
+    pending_users = User.query.filter_by(is_active=False).all()
+    return render_template('admin_approvals.html', users=pending_users)
+
+@app.route('/admin/approve_user/<int:user_id>')
+@login_required
+def approve_user(user_id):
+    if not current_user.is_admin: return redirect(url_for('index'))
+    user = User.query.get(user_id)
+    if user:
+        user.is_active = True
+        db.session.commit()
+    return redirect(url_for('admin_approvals'))
+
 @app.route('/api/admin/approve', methods=['POST'])
+@login_required
 def approve_booking():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
     data = request.get_json()
-    booking_id = data.get('booking_id') # Use unique booking ID now
-    expiry_str = data.get('expiry_date')
-    
-    booking = Booking.query.get(booking_id)
-    if booking and booking.status == 'pending':
-        # Approve this one
-        booking.status = 'approved'
-        if expiry_str:
-            booking.expires_at = datetime.strptime(expiry_str, '%Y-%m-%d')
-        else:
-            booking.expires_at = datetime.now(IST).replace(tzinfo=None) + timedelta(days=30)
-        
-        # IMPORTANT: Delete ALL other pending requests for this seat and shift
-        others = Booking.query.filter(
-            Booking.seat_id == booking.seat_id,
-            Booking.shift == booking.shift,
-            Booking.status == 'pending',
-            Booking.id != booking_id
-        ).all()
-        for other in others:
-            db.session.delete(other)
-            
-        db.session.commit()
-        return jsonify({'success': True})
-    return jsonify({'success': False}), 404
-
-@app.route('/api/admin/remove', methods=['POST'])
-def remove_user():
-    data = request.get_json()
-    seat_id = data.get('seat_id')
-    shift = data.get('shift')
-    
-    # Remove the approved one
-    booking = Booking.query.filter_by(seat_id=seat_id, shift=shift, status='approved').first()
+    booking = Booking.query.get(data.get('booking_id'))
     if booking:
-        wait = WaitingRoom(user_name=booking.user_name, removed_from_seat=seat_id)
-        db.session.add(wait)
-        db.session.delete(booking)
+        booking.status = 'approved'
+        expiry = data.get('expiry_date')
+        booking.expires_at = datetime.strptime(expiry, '%Y-%m-%d') if expiry else datetime.now(IST).replace(tzinfo=None) + timedelta(days=30)
+        others = Booking.query.filter(Booking.seat_id == booking.seat_id, Booking.shift == booking.shift, Booking.status == 'pending', Booking.id != booking.id).all()
+        for o in others: db.session.delete(o)
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False}), 404
-
-@app.route('/api/waiting_room')
-def get_waiting_room():
-    waiting = WaitingRoom.query.all()
-    return jsonify([{'user_name': w.user_name, 'seat': w.removed_from_seat} for w in waiting])
 
 if __name__ == '__main__':
     app.run(debug=True, port=9090)

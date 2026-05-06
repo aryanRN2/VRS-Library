@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="auth-section">
+    <div class="glass-card auth-container">
+        <h1>Join VRS Library</h1>
+        <p>Register your account and wait for admin approval.</p>
+        <form method="POST" class="auth-form">
+            <div class="form-grid">
+                <input type="text" name="name" placeholder="Full Name" required class="glass-input">
+                <input type="email" name="email" placeholder="Email Address" required class="glass-input">
+                <input type="tel" name="phone" placeholder="Phone Number" required class="glass-input">
+                <input type="password" name="password" placeholder="Create Password" required class="glass-input">
+                <select name="purpose" class="glass-input" required id="purpose-select">
+                    <option value="" disabled selected>Purpose of Enrollment</option>
+                    <option value="Preparation for Govt Job">Preparation for Govt Job</option>
+                    <option value="IIT">IIT</option>
+                    <option value="NEET">NEET</option>
+                    <option value="10/12 Board">10/12 Board</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <textarea name="description" id="other-desc" placeholder="Describe your purpose..." class="glass-input hidden" rows="3"></textarea>
+            <button type="submit" class="glass-btn">Register Account</button>
+        </form>
+        <p class="auth-footer">Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+    </div>
+</section>
+
+<style>
+.auth-section { padding-top: 100px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.auth-container { max-width: 500px; width: 90%; padding: 3rem; text-align: center; }
+.auth-form { margin-top: 2rem; }
+.auth-footer { margin-top: 1.5rem; font-size: 0.9rem; opacity: 0.8; }
+.auth-footer a { color: var(--accent-color); font-weight: 600; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.hidden { display: none; }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+</style>
+
+<script>
+document.getElementById('purpose-select').onchange = function() {
+    const desc = document.getElementById('other-desc');
+    if (this.value === 'Other') desc.classList.remove('hidden');
+    else desc.classList.add('hidden');
+};
+</script>
+{% endblock %}

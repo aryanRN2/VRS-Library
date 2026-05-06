@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="admin-section">
+    <div class="glass-card admin-container">
+        <h1>User Registrations</h1>
+        <p>Review and approve new member accounts.</p>
+        
+        <div class="user-list">
+            {% if users %}
+                {% for user in users %}
+                <div class="user-card">
+                    <div class="user-info">
+                        <h3>{{ user.name }}</h3>
+                        <p><b>Email:</b> {{ user.email }} | <b>Phone:</b> {{ user.phone }}</p>
+                        <p><b>Purpose:</b> {{ user.purpose }}</p>
+                        {% if user.description %}
+                        <p class="desc-text">"{{ user.description }}"</p>
+                        {% endif %}
+                    </div>
+                    <div class="user-actions">
+                        <a href="{{ url_for('approve_user', user_id=user.id) }}" class="glass-btn approve-btn">Approve Account</a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>No pending registrations at the moment.</p>
+                </div>
+            {% endif %}
+        </div>
+        <div class="modal-btns">
+            <a href="{{ url_for('membership') }}" class="glass-btn secondary">Back to Seats</a>
+        </div>
+    </div>
+</section>
+
+<style>
+.admin-section { padding-top: 100px; padding-bottom: 5rem; display: flex; justify-content: center; }
+.admin-container { max-width: 800px; width: 95%; padding: 3rem; text-align: center; }
+.user-list { margin-top: 2rem; text-align: left; }
+.user-card { background: rgba(0,0,0,0.03); border: 1px solid var(--glass-border); padding: 1.5rem; border-radius: 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
+.user-info h3 { margin: 0; color: var(--accent-color); }
+.user-info p { margin: 0.3rem 0; font-size: 0.9rem; }
+.desc-text { font-style: italic; opacity: 0.8; font-size: 0.85rem; }
+.approve-btn { background: #2ecc71; color: white; padding: 0.6rem 1.2rem; font-size: 0.8rem; }
+.empty-state { padding: 3rem; opacity: 0.5; font-style: italic; }
+@media (max-width: 600px) { .user-card { flex-direction: column; text-align: center; gap: 1rem; } }
+</style>
+{% endblock %}

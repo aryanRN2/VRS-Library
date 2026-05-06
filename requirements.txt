@@ -1,3 +1,5 @@
 flask
 flask-sqlalchemy
 pytz
+flask-login
+flask-bcrypt
