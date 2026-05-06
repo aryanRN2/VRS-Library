@@ -34,10 +34,18 @@
             <h2>Waiting Room</h2>
             <div id="waiting-list" class="waiting-list"></div>
         </div>
+
+        {% if current_user.is_admin %}
+        <div class="admin-footer-nav">
+            <a href="{{ url_for('admin_dashboard') }}" class="glass-btn secondary">
+                <i class="fas fa-arrow-left"></i> Back to Admin Dashboard
+            </a>
+        </div>
+        {% endif %}
     </div>
 </section>
 
-<!-- Booking Modal (Simplified since user is logged in) -->
+<!-- Booking Modal -->
 <div id="booking-modal" class="modal hidden">
     <div class="modal-content glass-card">
         <h3>Request Seat <span id="modal-seat-id"></span></h3>
@@ -99,6 +107,12 @@
 .admin-action { font-size: 0.5rem; background: rgba(0,0,0,0.1); border: none; padding: 2px 5px; border-radius: 3px; cursor: pointer; margin-top: 2px; }
 .admin-action.approve { background: #2ecc71; color: white; }
 
+.waiting-room-section { margin-top: 4rem; border-top: 1px solid var(--glass-border); padding-top: 2rem; }
+.waiting-list { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; }
+.waiting-item { background: var(--glass-bg); padding: 0.5rem 1rem; border-radius: 1rem; border: 1px solid var(--glass-border); font-size: 0.8rem; }
+
+.admin-footer-nav { margin-top: 3rem; display: flex; justify-content: center; border-top: 1px solid var(--glass-border); padding-top: 2rem; }
+
 .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
 .modal.hidden { display: none !important; }
 .wide-modal { width: 480px !important; }
@@ -108,6 +122,9 @@
 .glass-input { width: 100%; padding: 0.8rem; margin: 0.5rem 0; border-radius: 0.5rem; border: 1px solid var(--glass-border); background: white; }
 .modal-btns { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: center; }
 .hidden { display: none !important; }
+.preset-btns { display: flex; gap: 0.5rem; justify-content: center; margin: 0.5rem 0; }
+.preset-btn { background: #f0f0f0; border: 1px solid #ddd; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.75rem; }
+.preset-btn.active { background: var(--accent-color); color: white; }
 </style>
 
 <script>
@@ -128,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const d = new Date(); d.setDate(d.getDate() + days);
         return d.toISOString().split('T')[0];
     };
-    expiryInput.value = getDefaultDate(30);
+    if (expiryInput) expiryInput.value = getDefaultDate(30);
 
     async function loadSeats() {
         try {
@@ -203,6 +220,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (res.ok) { approvalModal.classList.add('hidden'); loadSeats(); }
     };
 
+    window.removeSeat = async (id) => {
+        const res = await fetch('/api/admin/remove', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({seat_id: id, shift: currentShift})
+        });
+        if (res.ok) loadSeats();
+    };
+
     function openBooking(id) {
         selectedSeat = id;
         document.getElementById('modal-seat-id').innerText = id;
@@ -230,6 +256,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     loadSeats();
+
+    async function loadWaitingRoom() {
+        const res = await fetch('/api/waiting_room');
+        const data = await res.json();
+        const list = document.getElementById('waiting-list');
+        if (list) {
+            list.innerHTML = data.map(w => `
+                <div class="waiting-item"><b>${w.user_name}</b> (from ${w.seat})</div>
+            `).join('');
+        }
+    }
 });
 </script>
 {% endblock %}
