@@ -152,8 +152,27 @@
     margin: 2px 0;
 }
 
-.seat.booked { background: #ff6b6b !important; color: white; }
+.seat.booked, .seat.approved { background: #ff6b6b !important; color: white; border-color: #ee5253; }
 .seat.available { background: #eefaf3; color: #27ae60; cursor: pointer; }
+.seat.pending { background: #feca57; color: #333; }
+
+.blink-yellow {
+    animation: blinker 1.5s linear infinite;
+    background: #feca57 !important;
+}
+
+@keyframes blinker {
+    50% { opacity: 0.5; }
+}
+
+.admin-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.admin-action.approve { background: #2ecc71; color: white; }
+.admin-action.reject { background: #e74c3c; color: white; }
 
 .admin-action {
     font-size: 0.5rem;
@@ -235,23 +254,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmBtn = document.getElementById('confirm-book');
 
     async function loadSeats() {
-        const res = await fetch(`/api/seats?shift=${currentShift}`);
-        const seats = await res.json();
-        renderGrid(seats);
-        loadWaitingRoom();
+        try {
+            const res = await fetch(`/api/seats?shift=${currentShift}`);
+            const seats = await res.json();
+            renderGrid(seats);
+            loadWaitingRoom();
+        } catch (e) { console.error("Failed to load seats", e); }
     }
 
     function renderGrid(seats) {
         grid.innerHTML = '';
         seats.forEach(seat => {
             const el = document.createElement('div');
-            el.className = `seat ${seat.user ? 'booked' : 'available'}`;
+            el.className = `seat ${seat.status || 'available'}`;
             
             let content = `<div class="seat-id">${seat.id}</div>
                            <div class="seat-user">${seat.user || 'Vacant'}</div>`;
             
-            if (isAdmin && seat.user) {
-                content += `<button class="admin-action" onclick="removeSeat('${seat.id}')">Remove</button>`;
+            if (isAdmin) {
+                if (seat.status === 'pending') {
+                    el.classList.add('blink-yellow');
+                    content += `<div class="admin-btns">
+                                    <button class="admin-action approve" onclick="approveSeat('${seat.id}')">Approve</button>
+                                    <button class="admin-action reject" onclick="removeSeat('${seat.id}')">Reject</button>
+                                </div>`;
+                } else if (seat.status === 'approved') {
+                    content += `<button class="admin-action" onclick="removeSeat('${seat.id}')">Remove</button>`;
+                }
+            } else {
+                if (seat.status === 'pending') {
+                    content = `<div class="seat-id">${seat.id}</div>
+                               <div class="seat-user">Requested...</div>`;
+                }
             }
             
             el.innerHTML = content;
@@ -265,15 +299,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadWaitingRoom() {
-        const res = await fetch('/api/waiting_room');
-        const data = await res.json();
-        const list = document.getElementById('waiting-list');
-        list.innerHTML = data.map(w => `
-            <div class="waiting-item">
-                <b>${w.user_name}</b> (from ${w.seat})
-            </div>
-        `).join('');
+        try {
+            const res = await fetch('/api/waiting_room');
+            const data = await res.json();
+            const list = document.getElementById('waiting-list');
+            list.innerHTML = data.map(w => `
+                <div class="waiting-item">
+                    <b>${w.user_name}</b> (from ${w.seat})
+                </div>
+            `).join('');
+        } catch (e) { console.error("Failed to load waiting room", e); }
     }
+
+    window.approveSeat = async (id) => {
+        const res = await fetch('/api/admin/approve', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({seat_id: id, shift: currentShift})
+        });
+        if (res.ok) loadSeats();
+    };
 
     window.removeSeat = async (id) => {
         const res = await fetch('/api/admin/remove', {
@@ -287,6 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function openBooking(id) {
         selectedSeat = id;
         document.getElementById('modal-seat-id').innerText = id;
+        document.getElementById('user-name-input').value = '';
         modal.classList.remove('hidden');
     }
 
@@ -303,6 +349,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (res.ok) {
             modal.classList.add('hidden');
             loadSeats();
+        } else {
+            const err = await res.json();
+            alert(err.message || 'Booking failed');
         }
     };
 

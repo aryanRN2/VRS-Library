@@ -1,4 +1,6 @@
 import os
+from datetime import datetime, timedelta
+import pytz
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
@@ -7,15 +9,20 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///library.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+IST = pytz.timezone('Asia/Kolkata')
+
 # Models
 class Seat(db.Model):
-    id = db.Column(db.String(10), primary_key=True) # e.g., A1-1
+    id = db.Column(db.String(10), primary_key=True)
 
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     seat_id = db.Column(db.String(10), db.ForeignKey('seat.id'), nullable=False)
     user_name = db.Column(db.String(100), nullable=False)
-    shift = db.Column(db.String(20), nullable=False) # morning, evening, full
+    shift = db.Column(db.String(20), nullable=False)
+    status = db.Column(db.String(20), default='pending') # pending, approved
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(IST))
+    expires_at = db.Column(db.DateTime)
 
 class WaitingRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -44,14 +51,25 @@ def membership():
 def get_seats():
     shift = request.args.get('shift', 'morning')
     bookings = Booking.query.filter_by(shift=shift).all()
-    booking_map = {b.seat_id: b.user_name for b in bookings}
+    
+    # Check for expired bookings
+    now = datetime.now(IST)
+    for b in bookings:
+        if b.expires_at and b.expires_at.replace(tzinfo=IST) < now:
+            db.session.delete(b)
+            db.session.commit()
+
+    # Re-fetch after cleaning
+    bookings = Booking.query.filter_by(shift=shift).all()
+    booking_data = {b.seat_id: {'user': b.user_name, 'status': b.status} for b in bookings}
     
     seats = Seat.query.all()
     result = []
     for s in seats:
         result.append({
             'id': s.id,
-            'user': booking_map.get(s.id)
+            'user': booking_data.get(s.id, {}).get('user'),
+            'status': booking_data.get(s.id, {}).get('status')
         })
     return jsonify(result)
 
@@ -64,12 +82,26 @@ def book_seat():
     
     existing = Booking.query.filter_by(seat_id=seat_id, shift=shift).first()
     if existing:
-        return jsonify({'success': False, 'message': 'Already booked'}), 400
+        return jsonify({'success': False, 'message': 'Already booked/requested'}), 400
     
-    new_booking = Booking(seat_id=seat_id, user_name=user_name, shift=shift)
+    new_booking = Booking(seat_id=seat_id, user_name=user_name, shift=shift, status='pending')
     db.session.add(new_booking)
     db.session.commit()
     return jsonify({'success': True})
+
+@app.route('/api/admin/approve', methods=['POST'])
+def approve_booking():
+    data = request.get_json()
+    seat_id = data.get('seat_id')
+    shift = data.get('shift')
+    
+    booking = Booking.query.filter_by(seat_id=seat_id, shift=shift, status='pending').first()
+    if booking:
+        booking.status = 'approved'
+        booking.expires_at = datetime.now(IST) + timedelta(days=30) # 1 month
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 404
 
 @app.route('/api/admin/remove', methods=['POST'])
 def remove_user():
@@ -84,7 +116,7 @@ def remove_user():
         db.session.delete(booking)
         db.session.commit()
         return jsonify({'success': True})
-    return jsonify({'success': False, 'message': 'No booking found'}), 404
+    return jsonify({'success': False}), 404
 
 @app.route('/api/waiting_room')
 def get_waiting_room():
