@@ -3,18 +3,19 @@ class ParticleSystem {
         this.container = document.getElementById('canvas-container');
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true }); // Disabled antialias for performance
         this.particles = null;
         this.geometry = null;
-        this.count = 15000;
+        this.count = 8000; // Reduced count for better performance
         this.scroll = 0;
+        this.targetScroll = 0;
 
         this.init();
     }
 
     init() {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Capped pixel ratio
         this.container.appendChild(this.renderer.domElement);
 
         this.camera.position.z = 5;
@@ -29,64 +30,60 @@ class ParticleSystem {
         const positions = new Float32Array(this.count * 3);
         const spreadPositions = new Float32Array(this.count * 3);
         const colors = new Float32Array(this.count * 3);
-        const sizes = new Float32Array(this.count);
+        const opacities = new Float32Array(this.count);
+        const randomOffsets = new Float32Array(this.count);
 
-        const color1 = new THREE.Color('#4a90e2'); // Bright Blue
-        const color2 = new THREE.Color('#ff6b6b'); // Coral Pink
-        const color3 = new THREE.Color('#50c878'); // Emerald
+        const googleColors = ['#4285F4', '#EA4335', '#FBBC05', '#34A853', '#8E24AA'];
 
         for (let i = 0; i < this.count; i++) {
-            // Sphere Shape (Base)
+            const i3 = i * 3;
+            // Sphere Shape
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos((Math.random() * 2) - 1);
-            const radius = 2 + (Math.random() * 0.5 - 0.25); // Slight thickness
+            const radius = 2 + (Math.random() * 0.4 - 0.2);
 
-            const x = radius * Math.sin(phi) * Math.cos(theta);
-            const y = radius * Math.sin(phi) * Math.sin(theta);
-            const z = radius * Math.cos(phi);
+            positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+            positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+            positions[i3 + 2] = radius * Math.cos(phi);
 
-            positions[i * 3] = x;
-            positions[i * 3 + 1] = y;
-            positions[i * 3 + 2] = z;
+            // Spread Positions (Larger range)
+            spreadPositions[i3] = (Math.random() - 0.5) * 30;
+            spreadPositions[i3 + 1] = (Math.random() - 0.5) * 30;
+            spreadPositions[i3 + 2] = (Math.random() - 0.5) * 30;
 
-            // Spread Positions
-            spreadPositions[i * 3] = (Math.random() - 0.5) * 20;
-            spreadPositions[i * 3 + 1] = (Math.random() - 0.5) * 20;
-            spreadPositions[i * 3 + 2] = (Math.random() - 0.5) * 20;
+            const randomColor = new THREE.Color(googleColors[Math.floor(Math.random() * googleColors.length)]);
+            colors[i3] = randomColor.r;
+            colors[i3 + 1] = randomColor.g;
+            colors[i3 + 2] = randomColor.b;
 
-            // Colors based on position
-            const mixedColor = color1.clone();
-            mixedColor.lerp(color2, (x + 2) / 4);
-            mixedColor.lerp(color3, (y + 2) / 4);
-
-            colors[i * 3] = mixedColor.r;
-            colors[i * 3 + 1] = mixedColor.g;
-            colors[i * 3 + 2] = mixedColor.b;
-
-            sizes[i] = Math.random() * 0.05;
+            opacities[i] = 1.0;
+            randomOffsets[i] = Math.random(); // Used for "smart" staggered disappearance
         }
 
         this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         this.geometry.setAttribute('spreadPosition', new THREE.BufferAttribute(spreadPositions, 3));
         this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        this.geometry.setAttribute('opacity', new THREE.BufferAttribute(opacities, 1));
+        this.geometry.setAttribute('randomOffset', new THREE.BufferAttribute(randomOffsets, 1));
 
-        const material = new THREE.PointsMaterial({
-            size: 0.02,
+        // Using a simpler material for better performance
+        this.material = new THREE.PointsMaterial({
+            size: 0.025,
             vertexColors: true,
             transparent: true,
-            opacity: 0.6,
-            blending: THREE.NormalBlending,
+            opacity: 1.0,
             sizeAttenuation: true
         });
 
-        this.particles = new THREE.Points(this.geometry, material);
+        this.particles = new THREE.Points(this.geometry, this.material);
         this.scene.add(this.particles);
+        
+        this.basePositions = new Float32Array(positions);
     }
 
     addEventListeners() {
         window.addEventListener('scroll', () => {
-            this.scroll = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
+            this.targetScroll = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
         });
 
         window.addEventListener('resize', () => {
@@ -96,53 +93,45 @@ class ParticleSystem {
         });
     }
 
-    update() {
-        const positions = this.geometry.attributes.position.array;
-        const basePositions = this.geometry.attributes.position.array; // We need to store base somewhere or use another attr
-        // Re-creating or using attributes for transitions
-        // For efficiency in a real app, I'd use a shader. For this task, I'll use a custom attribute logic.
-        
-        // Let's use a simpler approach: update the mesh's position/scale or use GSAP for the transition
-        // But for 15k particles, CPU updates are slow. Let's use a shader-like approach in the update loop or just GSAP on a uniform.
-    }
-
     animate() {
         requestAnimationFrame(this.animate.bind(this));
 
+        // Smooth scroll transition
+        this.scroll += (this.targetScroll - this.scroll) * 0.05;
+
         const time = Date.now() * 0.0005;
         this.particles.rotation.y = time * 0.1;
-        this.particles.rotation.x = time * 0.05;
 
-        // Reactive scroll transition
-        const positions = this.geometry.attributes.position.array;
-        const spreadPos = this.geometry.attributes.spreadPosition.array;
-        
-        // We need the original sphere positions. Let's store them.
-        if (!this.basePositions) {
-            this.basePositions = new Float32Array(positions);
-        }
+        const posAttr = this.geometry.attributes.position.array;
+        const spreadAttr = this.geometry.attributes.spreadPosition.array;
+        const opacAttr = this.geometry.attributes.opacity.array;
+        const offsetAttr = this.geometry.attributes.randomOffset.array;
 
         for (let i = 0; i < this.count; i++) {
             const i3 = i * 3;
-            // Interpolate between base and spread
-            // Using a smooth easing for scroll
-            const targetX = THREE.MathUtils.lerp(this.basePositions[i3], spreadPos[i3], this.scroll);
-            const targetY = THREE.MathUtils.lerp(this.basePositions[i3+1], spreadPos[i3+1], this.scroll);
-            const targetZ = THREE.MathUtils.lerp(this.basePositions[i3+2], spreadPos[i3+2], this.scroll);
+            const offset = offsetAttr[i];
+            
+            // "Smart" Fade logic: Particles disappear at different rates based on their random offset
+            // As scroll increases, particles with lower offsets fade out first
+            const fadeThreshold = this.scroll * 1.5; 
+            const particleOpacity = Math.max(0, 1 - (fadeThreshold - offset * 0.5));
+            opacAttr[i] = particleOpacity;
 
-            // Add some "noise" or movement
-            positions[i3] += (targetX - positions[i3]) * 0.1;
-            positions[i3+1] += (targetY - positions[i3+1]) * 0.1;
-            positions[i3+2] += (targetZ - positions[i3+2]) * 0.1;
+            // Only update position if particle is somewhat visible
+            if (particleOpacity > 0.01) {
+                posAttr[i3] = THREE.MathUtils.lerp(this.basePositions[i3], spreadAttr[i3], this.scroll);
+                posAttr[i3+1] = THREE.MathUtils.lerp(this.basePositions[i3+1], spreadAttr[i3+1], this.scroll);
+                posAttr[i3+2] = THREE.MathUtils.lerp(this.basePositions[i3+2], spreadAttr[i3+2], this.scroll);
+            }
         }
         
         this.geometry.attributes.position.needsUpdate = true;
+        this.geometry.attributes.opacity.needsUpdate = true;
 
         this.renderer.render(this.scene, this.camera);
     }
 }
 
-// Initialize
 document.addEventListener('DOMContentLoaded', () => {
     new ParticleSystem();
 });

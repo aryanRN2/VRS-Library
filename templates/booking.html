@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="content-section">
+    <div class="glass-card">
+        <h2>Reserve Your Space</h2>
+        <p>Choose your preferred seat in the VRS Library. Our immersive environment adapts to your focus needs.</p>
+        
+        <div class="booking-form">
+            <input type="text" placeholder="Full Name" class="glass-input">
+            <input type="time" class="glass-input">
+            <button class="glass-btn">Confirm Reservation</button>
+        </div>
+        
+        <a href="/" class="back-link">← Back to Home</a>
+    </div>
+</section>
+
+<style>
+.booking-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.glass-input {
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid var(--glass-border);
+    padding: 1rem;
+    border-radius: 1rem;
+    outline: none;
+    font-family: inherit;
+}
+
+.glass-btn {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 1rem;
+    border-radius: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.glass-btn:hover {
+    transform: scale(1.05);
+}
+
+.back-link {
+    display: block;
+    margin-top: 1rem;
+    text-decoration: none;
+    color: var(--text-color);
+    opacity: 0.6;
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}
