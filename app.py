@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
+from sqlalchemy import or_
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'vrs-secret-key'
@@ -21,6 +22,7 @@ IST = pytz.timezone('Asia/Kolkata')
 # Models
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(60), nullable=False)
     name = db.Column(db.String(100), nullable=False)
@@ -60,9 +62,9 @@ with app.app_context():
                 new_seat = Seat(id=f"A{col}-{row}")
                 db.session.add(new_seat)
         
-        if not User.query.filter_by(email='admin@vrs.com').first():
+        if not User.query.filter_by(username='admin').first():
             hashed_pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
-            admin = User(email='admin@vrs.com', password=hashed_pw, name='VRS Admin', 
+            admin = User(username='admin', email='admin@vrs.com', password=hashed_pw, name='VRS Admin', 
                          phone='0000000000', is_active=True, is_admin=True)
             db.session.add(admin)
         db.session.commit()
@@ -100,14 +102,24 @@ def approve_user(user_id):
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        username = request.form.get('username')
         email = request.form.get('email')
-        if User.query.filter_by(email=email).first():
-            flash('Email already exists.', 'danger')
+        
+        if User.query.filter((User.username == username) | (User.email == email)).first():
+            flash('Username or Email already exists.', 'danger')
             return redirect(url_for('register'))
+            
         hashed_pw = bcrypt.generate_password_hash(request.form.get('password')).decode('utf-8')
-        new_user = User(email=email, password=hashed_pw, name=request.form.get('name'),
-                        phone=request.form.get('phone'), purpose=request.form.get('purpose'),
-                        description=request.form.get('description'), is_active=False)
+        new_user = User(
+            username=username,
+            email=email, 
+            password=hashed_pw, 
+            name=request.form.get('name'),
+            phone=request.form.get('phone'), 
+            purpose=request.form.get('purpose'),
+            description=request.form.get('description'), 
+            is_active=False
+        )
         db.session.add(new_user)
         db.session.commit()
         flash('Registration successful! Please wait for admin approval.', 'success')
@@ -117,14 +129,16 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        user = User.query.filter_by(email=request.form.get('email')).first()
+        login_id = request.form.get('login_id')
+        user = User.query.filter((User.username == login_id) | (User.email == login_id)).first()
+        
         if user and bcrypt.check_password_hash(user.password, request.form.get('password')):
             if not user.is_active:
                 flash('Your account is pending admin approval.', 'warning')
                 return redirect(url_for('login'))
             login_user(user)
             return redirect(url_for('admin_dashboard') if user.is_admin else url_for('membership'))
-        flash('Login failed. Check email and password.', 'danger')
+        flash('Login failed. Check your ID and password.', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
