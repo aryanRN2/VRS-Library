@@ -10,8 +10,6 @@ from sqlalchemy import or_
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'vrs-secret-key'
 
-# Vercel compatibility for SQLite
-# Vercel filesystem is read-only, we use /tmp for temporary database if on Vercel
 if os.environ.get('VERCEL'):
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/library.db'
 else:
@@ -170,10 +168,12 @@ def membership():
 @login_required
 def get_seats():
     shift = request.args.get('shift', 'morning')
-    is_admin = current_user.is_authenticated and current_user.is_admin
+    is_admin = current_user.is_admin
     now = datetime.now(IST)
-    all_bookings = Booking.query.filter_by(shift=shift).all()
-    for b in all_bookings:
+    
+    # Expiry Check
+    all_active = Booking.query.filter_by(shift=shift, status='approved').all()
+    for b in all_active:
         if b.expires_at:
             expires = b.expires_at
             if expires.tzinfo is None: expires = IST.localize(expires)
@@ -185,7 +185,7 @@ def get_seats():
     seat_map = {}
     for b in bookings:
         if b.seat_id not in seat_map: seat_map[b.seat_id] = {'approved': None, 'pending': []}
-        data = {'id': b.id, 'user': b.user.name, 'phone': b.user.phone, 'purpose': b.user.purpose, 'status': b.status}
+        data = {'id': b.id, 'user_id': b.user_id, 'user': b.user.name, 'phone': b.user.phone, 'purpose': b.user.purpose, 'status': b.status}
         if b.status == 'approved': seat_map[b.seat_id]['approved'] = data
         else: seat_map[b.seat_id]['pending'].append(data)
 
@@ -193,12 +193,38 @@ def get_seats():
     result = []
     for s in seats:
         state = seat_map.get(s.id, {'approved': None, 'pending': []})
+        
         if is_admin:
-            result.append({'id': s.id, 'status': 'approved' if state['approved'] else ('pending' if state['pending'] else 'available'),
-                           'approved_user': state['approved'], 'pending_requests': state['pending']})
+            result.append({
+                'id': s.id, 
+                'status': 'approved' if state['approved'] else ('pending' if state['pending'] else 'available'),
+                'approved_user': state['approved'], 
+                'pending_requests': state['pending']
+            })
         else:
-            result.append({'id': s.id, 'status': 'approved' if state['approved'] else 'available',
-                           'user': state['approved']['user'] if state['approved'] else None})
+            # USER VIEW LOGIC
+            # If I am the approved owner -> Green (my-seat)
+            if state['approved'] and state['approved']['user_id'] == current_user.id:
+                final_status = 'my-seat'
+                user_name = 'Your Seat'
+            # If someone else is approved -> Red (booked)
+            elif state['approved']:
+                final_status = 'booked'
+                user_name = 'Occupied'
+            # If I have a pending request -> Yellow (pending)
+            elif any(p['user_id'] == current_user.id for p in state['pending']):
+                final_status = 'pending'
+                user_name = 'Requested'
+            # Otherwise -> Available
+            else:
+                final_status = 'available'
+                user_name = 'Vacant'
+                
+            result.append({
+                'id': s.id, 
+                'status': final_status,
+                'user': user_name
+            })
     return jsonify(result)
 
 @app.route('/api/book', methods=['POST'])
@@ -207,8 +233,15 @@ def book_seat():
     data = request.get_json()
     seat_id = data.get('seat_id')
     shift = data.get('shift')
+    
+    # RULE: One user can only have ONE active request or booking per shift
+    existing = Booking.query.filter_by(user_id=current_user.id, shift=shift).first()
+    if existing:
+        return jsonify({'success': False, 'message': 'You already have a seat request or booking for this shift.'}), 400
+        
     if Booking.query.filter_by(seat_id=seat_id, shift=shift, status='approved').first():
         return jsonify({'success': False, 'message': 'Seat already booked.'}), 400
+        
     new_booking = Booking(seat_id=seat_id, user_id=current_user.id, shift=shift, status='pending')
     db.session.add(new_booking)
     db.session.commit()

@@ -98,8 +98,9 @@
 .seat { min-height: 55px; background: rgba(255, 255, 255, 0.8); border: 1px solid var(--glass-border); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; transition: all 0.2s ease; position: relative; }
 .seat-id { font-size: 0.6rem; font-weight: 700; opacity: 0.7; }
 .seat-user { font-size: 0.55rem; text-align: center; font-weight: 600; margin: 2px 0; }
+.seat.available, .seat.my-seat { background: #eefaf3; color: #27ae60; cursor: pointer; }
+.seat.my-seat { border: 2px solid #27ae60; box-shadow: 0 0 10px rgba(39, 174, 96, 0.2); }
 .seat.booked, .seat.approved { background: #ff6b6b !important; color: white; border-color: #ee5253; }
-.seat.available { background: #eefaf3; color: #27ae60; cursor: pointer; }
 .seat.pending { background: #feca57; color: #333; }
 .blink-yellow { animation: blinker 1.5s linear infinite; background: #feca57 !important; }
 @keyframes blinker { 50% { opacity: 0.5; } }
@@ -241,7 +242,13 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({seat_id: selectedSeat, shift: currentShift})
         });
-        if (res.ok) { bookingModal.classList.add('hidden'); loadSeats(); }
+        const result = await res.json();
+        if (res.ok) { 
+            bookingModal.classList.add('hidden'); 
+            loadSeats(); 
+        } else {
+            alert(result.message || 'Booking failed.');
+        }
     };
 
     document.querySelectorAll('.close-btn').forEach(btn => btn.onclick = () => {
