@@ -100,11 +100,15 @@ def approve_booking():
     data = request.get_json()
     seat_id = data.get('seat_id')
     shift = data.get('shift')
+    expiry_str = data.get('expiry_date') 
     
     booking = Booking.query.filter_by(seat_id=seat_id, shift=shift, status='pending').first()
     if booking:
         booking.status = 'approved'
-        booking.expires_at = datetime.now(IST) + timedelta(days=30)
+        if expiry_str:
+            booking.expires_at = datetime.strptime(expiry_str, '%Y-%m-%d')
+        else:
+            booking.expires_at = datetime.now(IST).replace(tzinfo=None) + timedelta(days=30)
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False}), 404
