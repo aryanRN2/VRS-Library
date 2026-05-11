@@ -48,6 +48,9 @@ class User(db.Model, UserMixin):
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
+    
+    # Relationship with Bookings (Cascade Delete ensures bookings are removed if user is deleted)
+    bookings = db.relationship('Booking', backref='user', cascade='all, delete-orphan')
 
 class Seat(db.Model):
     id = db.Column(db.String(10), primary_key=True)
@@ -61,7 +64,6 @@ class Booking(db.Model):
     requested_plan = db.Column(db.String(20), default='1 Month')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(IST))
     expires_at = db.Column(db.DateTime)
-    user = db.relationship('User', backref='bookings')
 
 class WaitingRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -228,7 +230,7 @@ def login():
     if request.method == 'POST':
         login_id = request.form.get('login_id').strip()
         password = request.form.get('password').strip()
-        user = User.query.filter((User.username == login_id) | (User.email == login_id)).first()
+        user = User.query.filter((User.username == login_id) | (User.email == login_id) | (User.phone == login_id)).first()
         
         if user:
             if bcrypt.check_password_hash(user.password, password):
