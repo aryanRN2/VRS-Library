@@ -149,6 +149,11 @@
 .preset-btns { display: flex; gap: 0.5rem; justify-content: center; margin: 0.5rem 0; }
 .preset-btn { background: #f0f0f0; border: 1px solid #ddd; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.75rem; }
 .preset-btn.active { background: var(--accent-color); color: white; }
+.request-card .action-flex.vertical { display: flex; flex-direction: column; gap: 5px; }
+.glass-btn.small.pick { background: #4285F4; color: white; border: none; }
+.glass-btn.small.reject { background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; }
+.glass-btn.small.reject:hover { background: #fecaca; }
+
 .admin-info-box { display: flex; flex-direction: column; gap: 1px; font-size: 0.55rem; color: #fff; opacity: 0.85; margin: 2px 0; }
 .admin-info-box i { font-size: 0.5rem; margin-right: 2px; }
 .admin-action { padding: 4px 8px; font-size: 0.6rem; margin-top: 4px; }
@@ -259,7 +264,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p>${req.phone} | ${req.purpose}</p>
                     <p><span class="plan-badge">${req.requested_plan}</span></p>
                 </div>
-                <button class="glass-btn small" onclick="prepareApproval(${req.id}, '${req.user}', '${req.requested_plan}')">Pick</button>
+                <div class="action-flex vertical">
+                    <button class="glass-btn small pick" onclick="prepareApproval(${req.id}, '${req.user}', '${req.requested_plan}')">Pick</button>
+                    <button class="glass-btn small reject" onclick="rejectSeat(${req.id})">Reject</button>
+                </div>
             </div>
         `).join('');
         approvalModal.classList.remove('hidden');
@@ -279,6 +287,21 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelector('.preset-btn[data-days="3"]').click();
         } else {
             document.querySelector('.preset-btn[data-days="30"]').click();
+        }
+    };
+
+    window.rejectSeat = async (bookingId) => {
+        if (!confirm('Are you sure you want to reject this request?')) return;
+        const res = await fetch('/api/admin/reject', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({booking_id: bookingId})
+        });
+        if (res.ok) {
+            loadSeats();
+            approvalModal.classList.add('hidden');
+        } else {
+            alert('Failed to reject');
         }
     };
 

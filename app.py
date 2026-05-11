@@ -396,6 +396,18 @@ def approve_booking():
         return jsonify({'success': True})
     return jsonify({'success': False}), 404
 
+@app.route('/api/admin/reject', methods=['POST'])
+@login_required
+def reject_booking():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    data = request.get_json()
+    booking = Booking.query.get(data.get('booking_id'))
+    if booking:
+        db.session.delete(booking)
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False}), 404
+
 @app.route('/api/admin/remove', methods=['POST'])
 @login_required
 def remove_seat():
