@@ -102,13 +102,13 @@
 .logout-link { font-size: 0.85rem; color: #ff6b6b; margin-left: 1rem; text-decoration: none; }
 
 .shift-selector { display: flex; gap: 0.5rem; margin: 1rem 0; justify-content: center; }
-.shift-btn { background: var(--glass-bg); border: 1px solid var(--glass-border); padding: 0.5rem 1rem; border-radius: 2rem; color: var(--text-color); cursor: pointer; font-size: 0.8rem; transition: all 0.3s ease; }
+.shift-btn { background: var(--glass-bg); border: 1px solid var(--glass-border); padding: 0.5rem 1rem; border-radius: 2rem; color: var(--text-color); cursor: pointer; font-size: 0.8rem; }
 .shift-btn.active { background: var(--accent-color); color: white; }
 .grid-header { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; font-weight: 700; margin-bottom: 0.8rem; color: var(--accent-color); font-size: 1rem; }
 .seat-grid { display: flex; gap: 15px; justify-content: center; align-items: flex-start; overflow-x: auto; padding-bottom: 1rem; }
 .seat-column { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 120px; max-width: 200px; }
-.seat { min-height: 65px; background: white; border: 1.5px solid var(--glass-border); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-bottom: 2px; }
-.seat:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+.seat { min-height: 65px; background: white; border: 1.5px solid var(--glass-border); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-bottom: 2px; }
+.seat:hover { border-color: var(--accent-color); background: #f8faff; }
 .seat-id { font-size: 0.7rem; font-weight: 800; color: #444; margin-bottom: 2px; }
 .seat-user { font-size: 0.65rem; text-align: center; font-weight: 600; color: #666; line-height: 1.1; }
 .seat.available { background: #f0fff4; border-color: #c6f6d5; color: #27ae60; cursor: pointer; }
