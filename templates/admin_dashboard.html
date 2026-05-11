@@ -20,6 +20,7 @@
         <nav class="sidebar-nav">
             <a href="#overview" class="nav-item active"><i class="fas fa-chart-pie"></i> Overview</a>
             <a href="#registrations" class="nav-item"><i class="fas fa-user-clock"></i> User Approvals</a>
+            <a href="#users" class="nav-item"><i class="fas fa-users"></i> All Members</a>
             <a href="#messaging" class="nav-item"><i class="fas fa-paper-plane"></i> Messaging Center</a>
             <a href="{{ url_for('membership') }}" class="nav-item"><i class="fas fa-couch"></i> Seat Grid</a>
             <a href="{{ url_for('logout') }}" class="nav-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
@@ -35,14 +36,14 @@
             </div>
             
             <div class="stats-grid">
-                <div class="stat-card">
+                <div class="stat-card clickable" onclick="navigateToSection('users')">
                     <div class="stat-icon blue"><i class="fas fa-users"></i></div>
                     <div class="stat-info">
                         <span class="stat-value">{{ stats.active_members }}</span>
                         <span class="stat-label">Active Members</span>
                     </div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card clickable" onclick="navigateToSection('registrations')">
                     <div class="stat-icon yellow"><i class="fas fa-user-plus"></i></div>
                     <div class="stat-info">
                         <span class="stat-value">{{ stats.pending_users }}</span>
@@ -130,6 +131,70 @@
                 </div>
             </div>
         </div>
+        <!-- All Members Section -->
+        <div id="users" class="dash-section mt-4 hidden">
+            <div class="section-header">
+                <h2>Member Directory</h2>
+                <p>Manage all registered users and their current seat status.</p>
+            </div>
+
+            <div class="registration-table-container glass-card">
+                <div class="table-responsive">
+                    <table class="reg-table">
+                        <thead>
+                            <tr>
+                                <th>Member</th>
+                                <th>Status</th>
+                                <th>Current Booking</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in active_users %}
+                            <tr>
+                                <td class="user-cell">
+                                    <div class="avatar">{{ user.name[0]|upper }}</div>
+                                    <div class="user-name-stack">
+                                        <span class="u-name">{{ user.name }}</span>
+                                        <span class="u-username">{{ user.phone }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if user.is_active %}
+                                        <span class="status-tag active">Active</span>
+                                    {% else %}
+                                        <span class="status-tag inactive">Pending Approval</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.booking %}
+                                        <div class="booking-badge">
+                                            <i class="fas fa-couch"></i> {{ user.booking }} 
+                                            <span class="shift-mini">({{ user.shift }})</span>
+                                        </div>
+                                    {% else %}
+                                        <span class="no-booking">No Active Seat</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="action-flex">
+                                        <button onclick="openMessageModal('{{ user.phone }}', '{{ user.name }}')" class="action-btn secondary">
+                                            <i class="fab fa-whatsapp"></i>
+                                        </button>
+                                        {% if not user.is_active %}
+                                        <a href="{{ url_for('approve_user', user_id=user.id) }}" class="action-btn approve small">
+                                            Approve
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
         <!-- Messaging Center -->
         <div id="messaging" class="dash-section mt-4 hidden">
@@ -202,7 +267,9 @@
 
 /* Stats Grid */
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
-.stat-card { background: #fff; padding: 1.5rem; border-radius: 16px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 1.2rem; }
+.stat-card { background: #fff; padding: 1.5rem; border-radius: 16px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 1.2rem; transition: transform 0.2s, box-shadow 0.2s; }
+.stat-card.clickable { cursor: pointer; }
+.stat-card.clickable:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); border-color: #4285F4; }
 .stat-icon { width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
 .stat-icon.blue { background: #eff6ff; color: #3b82f6; }
 .stat-icon.yellow { background: #fffbeb; color: #f59e0b; }
@@ -228,6 +295,15 @@
 
 .action-btn { padding: 0.5rem 0.8rem; border-radius: 8px; text-decoration: none; font-size: 0.8rem; font-weight: 600; transition: 0.2s; white-space: nowrap; }
 .action-btn.approve { background: #22c55e; color: #fff; }
+.action-btn.approve.small { padding: 4px 8px; font-size: 0.7rem; }
+
+.status-tag { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+.status-tag.active { background: #dcfce7; color: #166534; }
+.status-tag.inactive { background: #fee2e2; color: #991b1b; }
+
+.booking-badge { background: #eff6ff; color: #1e40af; padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #bfdbfe; }
+.shift-mini { font-size: 0.7rem; opacity: 0.7; font-weight: 400; }
+.no-booking { color: #94a3b8; font-style: italic; font-size: 0.8rem; }
 
 @media (max-width: 1024px) {
     .admin-dashboard { grid-template-columns: 1fr; }
@@ -265,6 +341,21 @@
 </style>
 
 <script>
+function navigateToSection(targetId) {
+    // Toggle active class on nav
+    document.querySelectorAll('.nav-item').forEach(i => {
+        i.classList.remove('active');
+        if (i.getAttribute('href') === '#' + targetId) i.classList.add('active');
+    });
+    
+    // Toggle sections
+    document.querySelectorAll('.dash-section').forEach(s => s.classList.add('hidden'));
+    document.getElementById(targetId).classList.remove('hidden');
+    
+    // Smooth scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 document.querySelectorAll('.nav-item').forEach(item => {
     item.onclick = function(e) {
         if (this.getAttribute('href').startsWith('#')) {

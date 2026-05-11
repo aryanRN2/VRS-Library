@@ -51,7 +51,15 @@
 <div id="booking-modal" class="modal hidden">
     <div class="modal-content glass-card">
         <h3>Request Seat <span id="modal-seat-id"></span></h3>
-        <p>Confirm your interest for this seat. Our admin will review your profile.</p>
+        <p>Choose your allotment plan:</p>
+        <div class="plan-selector">
+            <button class="plan-btn active" data-plan="3 Days Trial">
+                <i class="fas fa-clock"></i> 3 Days Trial
+            </button>
+            <button class="plan-btn" data-plan="1 Month">
+                <i class="fas fa-calendar-check"></i> 1 Month Subscription
+            </button>
+        </div>
         <div class="modal-btns">
             <button id="confirm-book" class="glass-btn">Submit Request</button>
             <button class="glass-btn secondary close-btn">Cancel</button>
@@ -66,9 +74,10 @@
         <div id="requests-list" class="requests-container"></div>
         <div id="allotment-controls" class="allotment-section hidden">
             <hr>
+            <p>User Requested: <span id="user-requested-plan" class="plan-badge"></span></p>
             <p>Approve <b id="target-user-name"></b> for:</p>
             <div class="preset-btns">
-                <button class="preset-btn" data-days="4">4 Days</button>
+                <button class="preset-btn" data-days="3">3 Days Trial</button>
                 <button class="preset-btn active" data-days="30">1 Month</button>
             </div>
             <input type="date" id="expiry-date-input" class="glass-input">
@@ -96,8 +105,9 @@
 .shift-btn { background: var(--glass-bg); border: 1px solid var(--glass-border); padding: 0.5rem 1rem; border-radius: 2rem; color: var(--text-color); cursor: pointer; font-size: 0.8rem; transition: all 0.3s ease; }
 .shift-btn.active { background: var(--accent-color); color: white; }
 .grid-header { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; font-weight: 700; margin-bottom: 0.8rem; color: var(--accent-color); font-size: 1rem; }
-.seat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.seat { min-height: 65px; background: white; border: 1.5px solid var(--glass-border); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+.seat-grid { display: flex; gap: 15px; justify-content: center; align-items: flex-start; overflow-x: auto; padding-bottom: 1rem; }
+.seat-column { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 120px; max-width: 200px; }
+.seat { min-height: 65px; background: white; border: 1.5px solid var(--glass-border); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-bottom: 2px; }
 .seat:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 .seat-id { font-size: 0.7rem; font-weight: 800; color: #444; margin-bottom: 2px; }
 .seat-user { font-size: 0.65rem; text-align: center; font-weight: 600; color: #666; line-height: 1.1; }
@@ -142,6 +152,13 @@
 .admin-info-box { display: flex; flex-direction: column; gap: 1px; font-size: 0.55rem; color: #fff; opacity: 0.85; margin: 2px 0; }
 .admin-info-box i { font-size: 0.5rem; margin-right: 2px; }
 .admin-action { padding: 4px 8px; font-size: 0.6rem; margin-top: 4px; }
+
+.plan-selector { display: flex; flex-direction: column; gap: 0.5rem; margin: 1rem 0; }
+.plan-btn { background: #f8fafc; border: 1.5px solid #e2e8f0; padding: 1rem; border-radius: 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all 0.2s; font-weight: 600; text-align: left; }
+.plan-btn i { font-size: 1.1rem; color: #64748b; }
+.plan-btn.active { border-color: #4285F4; background: #eff6ff; }
+.plan-btn.active i { color: #4285F4; }
+.plan-badge { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; }
 </style>
 
 <script>
@@ -157,6 +174,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const bookingModal = document.getElementById('booking-modal');
     const approvalModal = document.getElementById('approval-modal');
     const expiryInput = document.getElementById('expiry-date-input');
+
+    // Handle Plan Selection (Member View)
+    document.querySelectorAll('.plan-btn').forEach(btn => btn.onclick = function() {
+        document.querySelectorAll('.plan-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+    });
 
     function getDefaultDate(days) {
         if (days === undefined) days = 30;
@@ -177,37 +200,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderGrid(seats) {
         grid.innerHTML = '';
-        seats.forEach(seat => {
-            const el = document.createElement('div');
-            el.className = `seat ${seat.status || 'available'}`;
-            let content = `<div class="seat-id">${seat.id}</div>
-                           <div class="seat-user">${seat.approved_user ? seat.approved_user.user : (seat.user || 'Vacant')}</div>`;
+        
+        // Group seats by block
+        const blocks = {'A1': [], 'A2': [], 'A3': [], 'A4': []};
+        seats.forEach(s => {
+            const prefix = s.id.split('-')[0];
+            if (blocks[prefix]) blocks[prefix].push(s);
+        });
+
+        // Create 4 columns
+        ['A1', 'A2', 'A3', 'A4'].forEach(blockId => {
+            const col = document.createElement('div');
+            col.className = 'seat-column';
             
-            if (isAdmin) {
-                if (seat.pending_requests && seat.pending_requests.length > 0) {
-                    el.classList.add('blink-yellow');
-                    content += `<div class="request-count">${seat.pending_requests.length} Req</div>`;
-                    content += `<button class="admin-action approve" onclick='openMultiReview(${JSON.stringify(seat.pending_requests)}, "${seat.id}")'>Review</button>`;
-                } else if (seat.status === 'approved') {
-                    const app = seat.approved_user;
-                    content += `<div class="admin-info-box">
-                                    <span><i class="fas fa-phone"></i> ${app.phone}</span>
-                                    <span><i class="fas fa-calendar-alt"></i> ${app.expires_at}</span>
-                                </div>`;
-                    content += `<button class="admin-action" onclick="removeSeat('${seat.id}')">Remove</button>`;
+            blocks[blockId].forEach(seat => {
+                const el = document.createElement('div');
+                el.className = `seat ${seat.status || 'available'}`;
+                let content = `<div class="seat-id">${seat.id}</div>
+                               <div class="seat-user">${seat.approved_user ? seat.approved_user.user : (seat.user || 'Vacant')}</div>`;
+                
+                if (isAdmin) {
+                    if (seat.pending_requests && seat.pending_requests.length > 0) {
+                        el.classList.add('blink-yellow');
+                        content += `<div class="request-count">${seat.pending_requests.length} Req</div>`;
+                        content += `<button class="admin-action approve" onclick='openMultiReview(${JSON.stringify(seat.pending_requests)}, "${seat.id}")'>Review</button>`;
+                    } else if (seat.status === 'approved') {
+                        const app = seat.approved_user;
+                        content += `<div class="admin-info-box">
+                                        <span><i class="fas fa-phone"></i> ${app.phone}</span>
+                                        <span><i class="fas fa-calendar-alt"></i> ${app.expires_at}</span>
+                                    </div>`;
+                        content += `<button class="admin-action" onclick="removeSeat('${seat.id}')">Remove</button>`;
+                    }
                 }
-            }
-            
-            el.innerHTML = content;
-            el.onclick = () => {
-                if (!isAuthenticated) return window.location.href = "{{ url_for('login') }}";
-                if (!isAdmin && (!seat.status || seat.status === 'available' || seat.status === 'pending')) {
-                    openBooking(seat.id);
-                } else if (isAdmin && seat.pending_requests && seat.pending_requests.length > 0) {
-                    openMultiReview(seat.pending_requests, seat.id);
-                }
-            };
-            grid.appendChild(el);
+                
+                el.innerHTML = content;
+                el.onclick = () => {
+                    if (!isAuthenticated) return window.location.href = "{{ url_for('login') }}";
+                    if (!isAdmin && (!seat.status || seat.status === 'available' || seat.status === 'pending')) {
+                        openBooking(seat.id);
+                    } else if (isAdmin && seat.pending_requests && seat.pending_requests.length > 0) {
+                        openMultiReview(seat.pending_requests, seat.id);
+                    }
+                };
+                col.appendChild(el);
+            });
+            grid.appendChild(col);
         });
     }
 
@@ -219,8 +257,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="request-info">
                     <p><b>${req.user}</b></p>
                     <p>${req.phone} | ${req.purpose}</p>
+                    <p><span class="plan-badge">${req.requested_plan}</span></p>
                 </div>
-                <button class="glass-btn small" onclick="prepareApproval(${req.id}, '${req.user}')">Pick</button>
+                <button class="glass-btn small" onclick="prepareApproval(${req.id}, '${req.user}', '${req.requested_plan}')">Pick</button>
             </div>
         `).join('');
         approvalModal.classList.remove('hidden');
@@ -228,11 +267,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('requests-list').classList.remove('hidden');
     };
 
-    window.prepareApproval = (id, name) => {
+    window.prepareApproval = (id, name, plan) => {
         targetBookingId = id;
         document.getElementById('target-user-name').innerText = name;
+        document.getElementById('user-requested-plan').innerText = plan;
         document.getElementById('requests-list').classList.add('hidden');
         document.getElementById('allotment-controls').classList.remove('hidden');
+        
+        // Auto-select preset based on user request
+        if (plan === '3 Days Trial') {
+            document.querySelector('.preset-btn[data-days="3"]').click();
+        } else {
+            document.querySelector('.preset-btn[data-days="30"]').click();
+        }
     };
 
     document.getElementById('final-approve-btn').onclick = async () => {
@@ -264,10 +311,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('confirm-book').onclick = async () => {
+        const activePlan = document.querySelector('.plan-btn.active').dataset.plan;
         const res = await fetch('/api/book', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({seat_id: selectedSeat, shift: currentShift})
+            body: JSON.stringify({seat_id: selectedSeat, shift: currentShift, plan: activePlan})
         });
         const result = await res.json();
         if (res.ok) { 

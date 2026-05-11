@@ -58,6 +58,7 @@ class Booking(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     shift = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(20), default='pending') 
+    requested_plan = db.Column(db.String(20), default='1 Month')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(IST))
     expires_at = db.Column(db.DateTime)
     user = db.relationship('User', backref='bookings')
@@ -72,10 +73,18 @@ with app.app_context():
     try:
         db.create_all()
         if Seat.query.count() == 0:
-            for col in range(1, 5):
-                for row in range(1, 21):
-                    new_seat = Seat(id=f"A{col}-{row}")
-                    db.session.add(new_seat)
+            # A1: 15 seats
+            for row in range(1, 16):
+                db.session.add(Seat(id=f"A1-{row}"))
+            # A2: 20 seats
+            for row in range(1, 21):
+                db.session.add(Seat(id=f"A2-{row}"))
+            # A3: 20 seats
+            for row in range(1, 21):
+                db.session.add(Seat(id=f"A3-{row}"))
+            # A4: 15 seats
+            for row in range(1, 16):
+                db.session.add(Seat(id=f"A4-{row}"))
             
             if not User.query.filter_by(is_admin=True).first():
                 admin_username = os.environ.get('ADMIN_USER', 'admin')
@@ -115,8 +124,27 @@ def admin_dashboard():
     }
     
     pending_users = User.query.filter_by(is_active=False, is_admin=False).order_by(User.id.desc()).all()
-    active_users = User.query.filter_by(is_active=True, is_admin=False).all()
-    return render_template('admin_dashboard.html', stats=stats, pending_users=pending_users, active_users=active_users)
+    all_users = User.query.filter_by(is_admin=False).order_by(User.name).all()
+    
+    # Enrich users with booking info
+    users_with_bookings = []
+    for user in all_users:
+        active_booking = Booking.query.filter_by(user_id=user.id, status='approved').first()
+        users_with_bookings.append({
+            'id': user.id,
+            'name': user.name,
+            'username': user.username,
+            'phone': user.phone,
+            'is_active': user.is_active,
+            'purpose': user.purpose,
+            'booking': active_booking.seat_id if active_booking else None,
+            'shift': active_booking.shift if active_booking else None
+        })
+
+    return render_template('admin_dashboard.html', 
+                           stats=stats, 
+                           pending_users=pending_users, 
+                           active_users=users_with_bookings)
 
 @app.route('/api/admin/send_whatsapp', methods=['POST'])
 @login_required
@@ -263,6 +291,7 @@ def get_seats():
             'phone': b.user.phone, 
             'purpose': b.user.purpose, 
             'status': b.status,
+            'requested_plan': b.requested_plan,
             'expires_at': b.expires_at.strftime('%d %b %Y') if b.expires_at else 'Permanent'
         }
         if b.status == 'approved': seat_map[b.seat_id]['approved'] = data
@@ -270,13 +299,29 @@ def get_seats():
 
     # Ensure seats are initialized if they are missing
     if Seat.query.count() == 0:
-        for col in range(1, 5):
-            for row in range(1, 21):
-                new_seat = Seat(id=f"A{col}-{row}")
-                db.session.add(new_seat)
+        # A1: 15 seats
+        for row in range(1, 16):
+            db.session.add(Seat(id=f"A1-{row}"))
+        # A2: 20 seats
+        for row in range(1, 21):
+            db.session.add(Seat(id=f"A2-{row}"))
+        # A3: 20 seats
+        for row in range(1, 21):
+            db.session.add(Seat(id=f"A3-{row}"))
+        # A4: 15 seats
+        for row in range(1, 16):
+            db.session.add(Seat(id=f"A4-{row}"))
         db.session.commit()
 
-    seats = Seat.query.order_by(Seat.id).all()
+    all_seats = Seat.query.all()
+    # Sort logically: A1-1, A1-2, ..., A1-10, A2-1, ...
+    def seat_sort_key(s):
+        parts = s.id.split('-')
+        prefix = parts[0] # e.g. "A1"
+        num = int(parts[1]) if len(parts) > 1 else 0
+        return (prefix, num)
+    
+    seats = sorted(all_seats, key=seat_sort_key)
     result = []
     for s in seats:
         state = seat_map.get(s.id, {'approved': None, 'pending': []})
@@ -329,7 +374,8 @@ def book_seat():
     if Booking.query.filter_by(seat_id=seat_id, shift=shift, status='approved').first():
         return jsonify({'success': False, 'message': 'Seat already booked.'}), 400
         
-    new_booking = Booking(seat_id=seat_id, user_id=current_user.id, shift=shift, status='pending')
+    plan = data.get('plan', '1 Month')
+    new_booking = Booking(seat_id=seat_id, user_id=current_user.id, shift=shift, status='pending', requested_plan=plan)
     db.session.add(new_booking)
     db.session.commit()
     return jsonify({'success': True})
