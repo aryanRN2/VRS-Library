@@ -1,15 +1,15 @@
 {% extends 'base.html' %}
 {% block content %}
 <section class="admin-dashboard">
-    <!-- Mobile Header -->
     <div class="mobile-admin-header">
-        <div class="sidebar-brand">
-            <i class="fas fa-shield-halved"></i>
-            <span>VRS Admin</span>
+        <div class="header-actions">
+            <button id="desktop-sidebar-toggle" class="glass-btn sidebar-toggle-btn" title="Toggle Sidebar">
+                <i class="fas fa-indent"></i>
+            </button>
+            <button id="sidebar-toggle" class="glass-btn small">
+                <i class="fas fa-bars"></i>
+            </button>
         </div>
-        <button id="sidebar-toggle" class="glass-btn small">
-            <i class="fas fa-bars"></i>
-        </button>
     </div>
 
     <div class="dashboard-sidebar" id="sidebar">
@@ -143,41 +143,63 @@
                     <table class="reg-table">
                         <thead>
                             <tr>
-                                <th>Member</th>
-                                <th>Status</th>
-                                <th>Current Booking</th>
-                                <th>Actions</th>
+                                <th style="width: 250px;">Member Profile</th>
+                                <th style="width: 280px;">Contact & Details</th>
+                                <th style="width: 250px;">Expiry & Notes</th>
+                                <th style="width: 120px;">Status</th>
+                                <th style="width: 150px;">Booking</th>
+                                <th style="width: 150px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for user in active_users %}
                             <tr>
                                 <td class="user-cell">
-                                    <div class="avatar">{{ user.name[0]|upper }}</div>
+                                    {% if user.profile_photo %}
+                                        <div class="avatar-large-table"><img src="{{ user.profile_photo }}" alt="Profile"></div>
+                                    {% else %}
+                                        <div class="avatar-table">{{ user.name[0]|upper }}</div>
+                                    {% endif %}
                                     <div class="user-name-stack">
-                                        <span class="u-name">{{ user.name }}</span>
-                                        <span class="u-username">{{ user.phone }}</span>
+                                        <span class="u-name-large">{{ user.name }}</span>
+                                        <span class="u-username-small">@{{ user.username }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="detail-stack">
+                                        <span><i class="fas fa-phone"></i> {{ user.phone }}</span>
+                                        <span class="u-email-small">{{ user.email or 'No Email' }}</span>
+                                        <span class="purpose-badge small">{{ user.purpose }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="detail-stack">
+                                        <span class="expiry-text"><i class="fas fa-calendar-alt"></i> {{ user.expires_at or 'No Expiry' }}</span>
+                                        <span class="note-summary">{{ user.admin_note_1 or '' }}</span>
                                     </div>
                                 </td>
                                 <td>
                                     {% if user.is_active %}
                                         <span class="status-tag active">Active</span>
                                     {% else %}
-                                        <span class="status-tag inactive">Pending Approval</span>
+                                        <span class="status-tag inactive">Pending</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if user.booking %}
-                                        <div class="booking-badge">
-                                            <i class="fas fa-couch"></i> {{ user.booking }} 
-                                            <span class="shift-mini">({{ user.shift }})</span>
+                                        <div class="booking-badge premium">
+                                            <i class="fas fa-couch"></i> <b>{{ user.booking }}</b>
+                                            <span class="shift-mini">{{ user.shift }}</span>
                                         </div>
                                     {% else %}
-                                        <span class="no-booking">No Active Seat</span>
+                                        <span class="no-booking">No Seat</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     <div class="action-flex">
+                                        <button onclick="openEditModal({{ user.id }})" class="action-btn edit-btn" title="Edit Member Details">
+                                            <i class="fas fa-user-edit"></i> Edit
+                                        </button>
                                         <button onclick="openMessageModal('{{ user.phone }}', '{{ user.name }}')" class="action-btn secondary">
                                             <i class="fab fa-whatsapp"></i>
                                         </button>
@@ -232,16 +254,100 @@
     </div>
 </section>
 
-<!-- Message Modal (Shortcut) -->
-<div id="message-modal" class="modal hidden">
-    <div class="modal-content glass-card">
-        <h3>Message <span id="msg-user-name"></span></h3>
-        <textarea id="modal-whatsapp-message" class="glass-input" rows="4" placeholder="Your message..."></textarea>
-        <div class="modal-btns">
-            <button id="modal-send-btn" class="premium-btn">Send via API</button>
-            <button id="modal-direct-btn" class="premium-btn secondary-wa">Direct Chat</button>
-            <button class="glass-btn secondary" onclick="closeMessageModal()">Cancel</button>
+</div>
+
+<!-- Edit Member Modal -->
+<div id="edit-user-modal" class="modal hidden">
+    <div class="modal-content glass-card large-modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-edit"></i> Member Details</h3>
+            <button class="close-btn" onclick="closeEditModal()">&times;</button>
         </div>
+        
+        <form id="edit-user-form" class="edit-form">
+            <input type="hidden" id="edit-user-id">
+            
+            <div class="edit-grid">
+                <!-- Left: Photo & Status -->
+                <div class="edit-sidebar">
+                    <div class="edit-avatar-container">
+                        <div id="edit-avatar-preview" class="avatar-large"></div>
+                        <input type="file" id="edit-photo-input" accept="image/*" class="hidden">
+                        <button type="button" class="glass-btn small" onclick="document.getElementById('edit-photo-input').click()">
+                            Change Photo
+                        </button>
+                    </div>
+                    
+                    <div class="status-toggle-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="edit-is-active">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">Active Member</span>
+                        </label>
+                    </div>
+                    
+                    <div class="danger-zone">
+                        <button type="button" class="delete-btn" onclick="deleteUser()">
+                            <i class="fas fa-trash-alt"></i> Delete User
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Right: Details & Notes -->
+                <div class="edit-details">
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" id="edit-name" class="glass-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input type="text" id="edit-phone" class="glass-input" required>
+                        </div>
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" id="edit-username" class="glass-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email (Optional)</label>
+                            <input type="email" id="edit-email" class="glass-input">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Password (Shown as Hash - Change to Update)</label>
+                        <input type="text" id="edit-password" class="glass-input" title="Type a new password to change it">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Membership Expiry (Click to Change)</label>
+                        <input type="datetime-local" id="edit-expires-at" class="glass-input">
+                    </div>
+                    
+                    <!-- Admin Comment Boxes -->
+                    <div class="form-group">
+                        <label><i class="fas fa-comment-dots"></i> Admin Comment Box 1 (Private)</label>
+                        <textarea id="edit-note-1" class="glass-input" rows="3" placeholder="Notes about payment, behavior, etc."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-comment-dots"></i> Admin Comment Box 2 (Private)</label>
+                        <textarea id="edit-note-2" class="glass-input" rows="3" placeholder="Additional internal records..."></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="glass-btn secondary" onclick="resetEditChanges()" style="background: #f1f5f9; color: #64748b;">
+                    <i class="fas fa-undo"></i> Reset Changes
+                </button>
+                <button type="submit" class="premium-btn" id="save-user-btn">
+                    <i class="fas fa-save"></i> Save All Changes
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -261,9 +367,13 @@
 .nav-item.logout { margin-top: auto; color: #ef4444; }
 
 /* Main Content */
-.dashboard-main { padding: 2.5rem; max-width: 100%; overflow-x: hidden; }
-.section-header { margin-bottom: 2rem; }
+.dashboard-main { padding: 2rem; width: 100%; transition: padding 0.4s ease; min-width: 0; }
+.admin-dashboard.sidebar-hidden .dashboard-main { padding: 2rem 4rem; }
+.dash-section { width: 100%; max-width: 1400px; margin: 0 auto; }
+.registration-table-container { width: 100%; max-width: 100%; background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; }
+.section-header { margin-bottom: 2rem; padding-left: 3.5rem; }
 .section-header h2 { font-size: 1.8rem; font-weight: 700; color: #1e293b; margin-bottom: 0.2rem; }
+@media (max-width: 1024px) { .section-header { padding-left: 0; } }
 
 /* Stats Grid */
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
@@ -279,17 +389,19 @@
 .stat-label { font-size: 0.8rem; color: #64748b; }
 
 /* Table */
-.registration-table-container { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; }
-.table-responsive { overflow-x: auto; }
-.reg-table { width: 100%; border-collapse: collapse; min-width: 500px; }
-.reg-table th { background: #f8fafc; padding: 1rem; font-size: 0.8rem; color: #64748b; border-bottom: 1px solid #e2e8f0; text-align: left; }
-.reg-table td { padding: 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.registration-table-container { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; }
+.table-responsive { overflow-x: auto; width: 100%; }
+.reg-table { width: 100%; border-collapse: collapse; min-width: 1000px; table-layout: fixed; }
+.reg-table th { background: #f8fafc; padding: 1.2rem 1rem; font-size: 0.85rem; color: #475569; font-weight: 700; border: 1px solid #e2e8f0; text-align: left; text-transform: uppercase; letter-spacing: 0.05em; }
+.reg-table td { padding: 1.2rem 1rem; border: 1px solid #e2e8f0; vertical-align: middle; background: #fff; position: relative; }
+.reg-table tr:hover td { background: #f8faff; }
 
 .user-cell { display: flex; align-items: center; gap: 0.8rem; }
 .user-name-stack { display: flex; flex-direction: column; }
 .u-name { font-weight: 600; color: #1e293b; font-size: 0.9rem; }
 .u-username { font-size: 0.75rem; color: #94a3b8; }
-.avatar { width: 32px; height: 32px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0; }
+.avatar, .avatar-img { width: 32px; height: 32px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0; overflow: hidden; }
+.avatar-img img { width: 100%; height: 100%; object-fit: cover; }
 .contact-info { display: flex; flex-direction: column; gap: 4px; }
 .purpose-badge.small { padding: 2px 6px; font-size: 0.7rem; display: inline-block; width: fit-content; }
 
@@ -303,16 +415,40 @@
 
 .booking-badge { background: #eff6ff; color: #1e40af; padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #bfdbfe; }
 .shift-mini { font-size: 0.7rem; opacity: 0.7; font-weight: 400; }
-.no-booking { color: #94a3b8; font-style: italic; font-size: 0.8rem; }
+.avatar-table, .avatar-large-table { width: 45px; height: 45px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0; overflow: hidden; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+.avatar-large-table img { width: 100%; height: 100%; object-fit: cover; }
+.u-name-large { font-weight: 700; color: #1e293b; font-size: 1rem; display: block; }
+.u-username-small { font-size: 0.75rem; color: #64748b; font-weight: 500; }
+.detail-stack span { display: block; word-break: break-all; }
+.booking-badge.premium { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: 10px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; }
+.booking-badge b { font-size: 1rem; margin: 0 4px; }
+.expiry-text { font-size: 0.8rem; font-weight: 600; color: #1e293b; display: block; margin-bottom: 4px; }
+.note-summary { font-size: 0.75rem; color: #64748b; font-style: italic; display: block; max-height: 40px; overflow-y: auto; scrollbar-width: none; }
+.note-summary::-webkit-scrollbar { display: none; }
+.no-booking { color: #94a3b8; font-style: italic; font-size: 0.85rem; }
+
+.sidebar-toggle-btn { width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #fff; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: pointer; color: #2563eb; transition: 0.3s; }
+.sidebar-toggle-btn:hover { background: #eff6ff; transform: scale(1.05); }
+.admin-dashboard.sidebar-hidden .sidebar-toggle-btn i { transform: rotate(180deg); }
+.admin-dashboard.sidebar-hidden { grid-template-columns: 0px 1fr; }
+
+.dashboard-sidebar { background: #fff; border-right: 1px solid #e2e8f0; padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 2rem; position: sticky; top: 0; height: 100vh; transition: transform 0.4s ease, width 0.4s ease; overflow: hidden; }
+.admin-dashboard.sidebar-hidden .dashboard-sidebar { transform: translateX(-100%); width: 0; padding: 0; border: none; }
+
+.mobile-admin-header { display: flex; padding: 1rem; background: #fff; border-bottom: 1px solid #e2e8f0; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.header-actions { display: flex; gap: 0.5rem; }
+
+@media (min-width: 1025px) {
+    .mobile-admin-header { background: transparent; border-bottom: none; position: fixed; top: 1.5rem; left: 1.5rem; width: auto; z-index: 1001; transition: left 0.4s ease; }
+    .admin-dashboard.sidebar-hidden .mobile-admin-header { left: 1.5rem; }
+    .sidebar-brand, #sidebar-toggle { display: none !important; }
+    .dashboard-main { padding-top: 5rem; }
+}
 
 @media (max-width: 1024px) {
     .admin-dashboard { grid-template-columns: 1fr; }
-    .desktop-only { display: none; }
-    .mobile-admin-header { display: flex; }
-    .dashboard-sidebar { 
-        position: fixed; left: -260px; top: 65px; height: calc(100vh - 65px); width: 260px; 
-        z-index: 1000; box-shadow: 10px 0 30px rgba(0,0,0,0.1); 
-    }
+    #desktop-sidebar-toggle { display: none !important; }
+    .dashboard-sidebar { position: fixed; left: -280px; top: 65px; height: calc(100vh - 65px); width: 280px; z-index: 1000; }
     .dashboard-sidebar.active { left: 0; }
     .dashboard-main { padding: 1.5rem; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -329,30 +465,62 @@
 .premium-btn.secondary-wa { background: #2563eb; }
 .premium-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(37, 211, 102, 0.2); }
 
-.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-.modal-content { max-width: 450px; width: 90%; padding: 2rem; }
-.modal-btns { display: flex; gap: 1rem; margin-top: 1.5rem; }
+.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; backdrop-filter: blur(5px); padding: 20px; }
 .hidden { display: none !important; }
 
-@media (max-width: 600px) {
-    .stats-grid { grid-template-columns: 1fr; }
-    .stat-card { padding: 1rem; }
+/* Modal Enhancements */
+.large-modal { max-width: 800px; width: 100%; max-height: 90vh; padding: 0; overflow-y: auto; background: #fff; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+.modal-header { padding: 1.5rem 2rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { margin: 0; color: #1e293b; display: flex; align-items: center; gap: 10px; }
+.close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b; }
+
+.edit-form { padding: 2rem; }
+.edit-grid { display: grid; grid-template-columns: 220px 1fr; gap: 2rem; }
+.edit-avatar-container { text-align: center; margin-bottom: 2rem; }
+.avatar-large { width: 150px; height: 150px; border-radius: 50%; background: #f1f5f9; margin: 0 auto 1rem; border: 4px solid #eff6ff; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.avatar-large img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-large i { font-size: 5rem; color: #cbd5e1; }
+
+.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
+.form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 0.5rem; }
+.glass-input { width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-family: inherit; }
+.glass-input:focus { border-color: #4285F4; outline: none; box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1); }
+
+/* Status Toggle */
+.status-toggle-group { margin: 2rem 0; padding: 1rem; background: #f8fafc; border-radius: 12px; }
+.toggle-label { display: flex; align-items: center; gap: 12px; cursor: pointer; position: relative; }
+.toggle-slider { width: 44px; height: 24px; background: #cbd5e1; border-radius: 20px; position: relative; transition: 0.3s; }
+.toggle-slider:before { content: ""; width: 18px; height: 18px; background: #fff; border-radius: 50%; position: absolute; left: 3px; top: 3px; transition: 0.3s; }
+input[type="checkbox"] { display: none; }
+input[type="checkbox"]:checked + .toggle-slider { background: #22c55e; }
+input[type="checkbox"]:checked + .toggle-slider:before { left: 23px; }
+.toggle-text { font-weight: 600; color: #1e293b; font-size: 0.9rem; }
+
+.danger-zone { margin-top: 2rem; border-top: 1px solid #fee2e2; padding-top: 1.5rem; }
+.delete-btn { width: 100%; padding: 0.8rem; background: #fff; color: #ef4444; border: 1px solid #ef4444; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.delete-btn:hover { background: #fef2f2; }
+
+.modal-footer { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; }
+
+.action-btn.edit-btn { background: #eff6ff; color: #2563eb; }
+.action-btn.edit-btn:hover { background: #dbeafe; }
+
+@media (max-width: 768px) {
+    .edit-grid { grid-template-columns: 1fr; }
+    .input-row { grid-template-columns: 1fr; }
 }
 </style>
 
 <script>
+// Navigation logic
 function navigateToSection(targetId) {
-    // Toggle active class on nav
     document.querySelectorAll('.nav-item').forEach(i => {
         i.classList.remove('active');
         if (i.getAttribute('href') === '#' + targetId) i.classList.add('active');
     });
-    
-    // Toggle sections
     document.querySelectorAll('.dash-section').forEach(s => s.classList.add('hidden'));
-    document.getElementById(targetId).classList.remove('hidden');
-    
-    // Smooth scroll to top
+    const target = document.getElementById(targetId);
+    if (target) target.classList.remove('hidden');
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -360,43 +528,33 @@ document.querySelectorAll('.nav-item').forEach(item => {
     item.onclick = function(e) {
         if (this.getAttribute('href').startsWith('#')) {
             e.preventDefault();
-            const target = this.getAttribute('href').substring(1);
-            
-            // Toggle active class on nav
-            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Toggle sections
-            document.querySelectorAll('.dash-section').forEach(s => s.classList.add('hidden'));
-            document.getElementById(target).classList.remove('hidden');
-            
-            // Close sidebar on mobile
-            if (window.innerWidth <= 1024) {
-                document.getElementById('sidebar').classList.remove('active');
-            }
+            navigateToSection(this.getAttribute('href').substring(1));
+            if (window.innerWidth <= 1024) document.getElementById('sidebar').classList.remove('active');
         }
     };
 });
 
-document.getElementById('sidebar-toggle').onclick = function() {
-    document.getElementById('sidebar').classList.toggle('active');
+document.getElementById('sidebar-toggle').onclick = () => document.getElementById('sidebar').classList.toggle('active');
+
+document.getElementById('desktop-sidebar-toggle').onclick = function() {
+    const dashboard = document.querySelector('.admin-dashboard');
+    dashboard.classList.toggle('sidebar-hidden');
+    const icon = this.querySelector('i');
+    icon.classList.toggle('fa-indent');
+    icon.classList.toggle('fa-outdent');
 };
 
+// WhatsApp Logic
 let currentTargetPhone = null;
-
 function openMessageModal(phone, name) {
     currentTargetPhone = phone;
     document.getElementById('msg-user-name').innerText = name;
     document.getElementById('message-modal').classList.remove('hidden');
 }
-
-function closeMessageModal() {
-    document.getElementById('message-modal').classList.add('hidden');
-}
+function closeMessageModal() { document.getElementById('message-modal').classList.add('hidden'); }
 
 async function sendWhatsApp(phone, message) {
     if (!message) return alert('Please enter a message');
-    
     try {
         const res = await fetch('/api/admin/send_whatsapp', {
             method: 'POST',
@@ -404,66 +562,135 @@ async function sendWhatsApp(phone, message) {
             body: JSON.stringify({ phone, message })
         });
         const data = await res.json();
-        if (data.success) {
-            alert('Message sent successfully!');
-            return true;
-        } else {
-            alert('Failed to send: ' + data.message);
-            return false;
-        }
-    } catch (e) {
-        alert('Error connecting to API');
-        return false;
-    }
+        if (data.success) { alert('Message sent!'); return true; }
+        else { alert('Error: ' + data.message); return false; }
+    } catch (e) { alert('Connection error'); return false; }
 }
 
-document.getElementById('send-whatsapp-btn').onclick = async function() {
-    const phone = document.getElementById('whatsapp-recipient').value;
-    const message = document.getElementById('whatsapp-message').value;
-    if (!phone) return alert('Please select a recipient');
+// Member Edit Logic
+function openEditModal(userId) {
+    console.log("Opening edit modal for user:", userId);
+    const modal = document.getElementById('edit-user-modal');
+    modal.classList.remove('hidden');
     
-    const btn = this;
-    const originalContent = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span>Sending...</span>';
-    
-    const success = await sendWhatsApp(phone, message);
-    
-    btn.disabled = false;
-    btn.innerHTML = originalContent;
-    if (success) document.getElementById('whatsapp-message').value = '';
-};
+    fetch(`/api/admin/user/${userId}`)
+        .then(res => res.json())
+        .then(user => {
+            document.getElementById('edit-user-id').value = user.id;
+            document.getElementById('edit-name').value = user.name;
+            document.getElementById('edit-phone').value = user.phone;
+            document.getElementById('edit-username').value = user.username;
+            document.getElementById('edit-email').value = user.email || '';
+            document.getElementById('edit-password').value = user.password;
+            document.getElementById('edit-is-active').checked = user.is_active;
+            document.getElementById('edit-expires-at').value = user.expires_at || '';
+            document.getElementById('edit-note-1').value = user.admin_note_1 || '';
+            document.getElementById('edit-note-2').value = user.admin_note_2 || '';
+            
+            const preview = document.getElementById('edit-avatar-preview');
+            preview.innerHTML = user.profile_photo ? `<img src="${user.profile_photo}">` : `<i class="fas fa-user-circle"></i>`;
+        })
+        .catch(err => alert('Error loading user data'));
+}
 
-document.getElementById('direct-wa-btn').onclick = function() {
-    const phone = document.getElementById('whatsapp-recipient').value;
-    const message = document.getElementById('whatsapp-message').value;
-    if (!phone) return alert('Please select a recipient');
-    
-    // Clean phone number
-    let cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-    
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
-};
+function resetEditChanges() {
+    const userId = document.getElementById('edit-user-id').value;
+    if (userId) openEditModal(userId);
+}
 
-document.getElementById('modal-send-btn').onclick = async function() {
-    const message = document.getElementById('modal-whatsapp-message').value;
-    const success = await sendWhatsApp(currentTargetPhone, message);
-    if (success) {
-        document.getElementById('modal-whatsapp-message').value = '';
-        closeMessageModal();
+let editCompressedPhoto = null;
+const photoInput = document.getElementById('edit-photo-input');
+if (photoInput) {
+    photoInput.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX = 400;
+                let w = img.width, h = img.height;
+                if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } }
+                else { if (h > MAX) { w *= MAX/h; h = MAX; } }
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                // Reduce quality to 0.5 for faster transfer
+                editCompressedPhoto = canvas.toDataURL('image/jpeg', 0.5);
+                document.getElementById('edit-avatar-preview').innerHTML = `<img src="${editCompressedPhoto}">`;
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+}
+
+document.getElementById('edit-user-form').onsubmit = async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('save-user-btn');
+    btn.disabled = true; btn.innerText = 'Saving...';
+    
+    const payload = {
+        user_id: document.getElementById('edit-user-id').value,
+        name: document.getElementById('edit-name').value,
+        phone: document.getElementById('edit-phone').value,
+        username: document.getElementById('edit-username').value,
+        email: document.getElementById('edit-email').value,
+        password: document.getElementById('edit-password').value,
+        is_active: document.getElementById('edit-is-active').checked,
+        expires_at: document.getElementById('edit-expires-at').value,
+        admin_note_1: document.getElementById('edit-note-1').value,
+        admin_note_2: document.getElementById('edit-note-2').value,
+        profile_photo: editCompressedPhoto
+    };
+    
+    try {
+        const res = await fetch('/api/admin/user/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        
+        if (res.ok) {
+            const userId = payload.user_id;
+            // Update the row directly for instant feedback
+            document.getElementById(`row-name-${userId}`).innerText = payload.name;
+            document.getElementById(`row-username-${userId}`).innerText = '@' + payload.username;
+            document.getElementById(`row-phone-${userId}`).innerHTML = `<i class="fas fa-phone"></i> ${payload.phone}`;
+            document.getElementById(`row-email-${userId}`).innerText = payload.email || 'No Email';
+            document.getElementById(`row-expiry-${userId}`).innerHTML = `<i class="fas fa-calendar-alt"></i> ${payload.expires_at || 'No Expiry'}`;
+            document.getElementById(`row-note-${userId}`).innerText = payload.admin_note_1 || '';
+            document.getElementById(`row-status-${userId}`).innerHTML = payload.is_active 
+                ? '<span class="status-tag active">Active</span>' 
+                : '<span class="status-tag inactive">Pending</span>';
+            
+            if (editCompressedPhoto) {
+                document.getElementById(`row-avatar-${userId}`).innerHTML = `<div class="avatar-large-table"><img src="${editCompressedPhoto}" alt="Profile"></div>`;
+            }
+            
+            closeEditModal();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> Save All Changes';
+        } else {
+            alert('Update failed');
+            btn.disabled = false;
+            btn.innerText = 'Save All Changes';
+        }
+    } catch (e) {
+        alert('Server error');
+        btn.disabled = false;
     }
 };
 
-document.getElementById('modal-direct-btn').onclick = function() {
-    const message = document.getElementById('modal-whatsapp-message').value;
-    let cleanPhone = currentTargetPhone.replace(/\D/g, '');
-    if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-    
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
-    closeMessageModal();
-};
+function deleteUser() {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    const userId = document.getElementById('edit-user-id').value;
+    fetch('/api/admin/user/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ user_id: userId })
+    }).then(res => res.ok ? location.reload() : alert('Delete failed'))
+      .catch(() => alert('Server error'));
+}
 </script>
 {% endblock %}

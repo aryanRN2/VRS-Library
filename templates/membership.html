@@ -8,6 +8,15 @@
             <div class="admin-controls">
                 {% if current_user.is_authenticated %}
                     <span class="user-welcome">Hello, {{ current_user.name }}</span>
+                    {% if current_user.profile_photo %}
+                        <div class="user-avatar-nav" onclick="togglePhotoUpload()">
+                            <img src="{{ current_user.profile_photo }}" alt="Profile">
+                        </div>
+                    {% else %}
+                        <div class="user-avatar-nav placeholder" onclick="togglePhotoUpload()">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    {% endif %}
                     {% if current_user.is_admin %}
                         <a href="{{ url_for('admin_dashboard') }}" class="admin-badge link">Admin Dashboard</a>
                     {% endif %}
@@ -25,11 +34,36 @@
         </div>
 
         <div class="grid-header">
-            <span>A1</span><span>A2</span><span>A3</span><span>A4</span>
+            <span>COL 1</span><span>COL 2</span><span>COL 3</span><span>COL 4</span>
         </div>
 
         <div class="seat-grid" id="seat-grid">
             <div class="loading-state">Loading seats...</div>
+        </div>
+
+        <!-- Photo Upload Section (Hidden by default) -->
+        <div id="photo-upload-container" class="photo-mgmt-section hidden">
+            <div class="glass-card inner-card">
+                <h3>Update Profile Photo</h3>
+                <div class="photo-preview-large" id="photo-preview-large">
+                    {% if current_user.profile_photo %}
+                        <img src="{{ current_user.profile_photo }}" id="current-photo-img">
+                    {% else %}
+                        <i class="fas fa-user-circle"></i>
+                    {% endif %}
+                </div>
+                <input type="file" id="dashboard-photo-input" accept="image/*" class="hidden">
+                <div class="upload-btns">
+                    <button class="glass-btn small" onclick="document.getElementById('dashboard-photo-input').click()">
+                        <i class="fas fa-camera"></i> Select Photo
+                    </button>
+                    <button id="save-photo-btn" class="glass-btn small active" disabled onclick="uploadDashboardPhoto()">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+                <p id="upload-status" class="status-msg"></p>
+                <button class="text-link" onclick="togglePhotoUpload()">Close</button>
+            </div>
         </div>
 
         <div class="waiting-room-section">
@@ -176,6 +210,21 @@
 .plan-btn.active { border-color: #4285F4; background: #eff6ff; }
 .plan-btn.active i { color: #4285F4; }
 .plan-badge { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; }
+
+/* Dashboard Photo Mgmt */
+.user-avatar-nav { width: 35px; height: 35px; border-radius: 50%; overflow: hidden; cursor: pointer; border: 2px solid var(--accent-color); transition: 0.3s; }
+.user-avatar-nav.placeholder { background: var(--glass-bg); display: flex; align-items: center; justify-content: center; color: var(--accent-color); }
+.user-avatar-nav:hover { transform: scale(1.1); box-shadow: 0 0 10px rgba(66, 133, 244, 0.4); }
+.user-avatar-nav img { width: 100%; height: 100%; object-fit: cover; }
+
+.photo-mgmt-section { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; display: flex; justify-content: center; align-items: center; backdrop-blur: 5px; }
+.inner-card { max-width: 400px; width: 90%; text-align: center; padding: 2rem; }
+.photo-preview-large { width: 150px; height: 150px; border-radius: 50%; margin: 1.5rem auto; border: 4px solid var(--accent-color); overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f0f0f0; }
+.photo-preview-large img { width: 100%; height: 100%; object-fit: cover; }
+.photo-preview-large i { font-size: 5rem; color: #ccc; }
+.upload-btns { display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1rem; }
+.status-msg { font-size: 0.8rem; font-weight: 600; color: var(--accent-color); margin: 0.5rem 0; }
+.text-link { background: none; border: none; color: #888; text-decoration: underline; cursor: pointer; font-size: 0.85rem; }
 </style>
 
 <script>
@@ -218,19 +267,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderGrid(seats) {
         grid.innerHTML = '';
         
-        // Group seats by block
-        const blocks = {'A1': [], 'A2': [], 'A3': [], 'A4': []};
-        seats.forEach(s => {
-            const prefix = s.id.split('-')[0];
-            if (blocks[prefix]) blocks[prefix].push(s);
+        // Group seats into 4 columns (16, 16, 16, 17)
+        const columns = [[], [], [], []];
+        seats.forEach((s, i) => {
+            if (i < 16) columns[0].push(s);
+            else if (i < 32) columns[1].push(s);
+            else if (i < 48) columns[2].push(s);
+            else columns[3].push(s);
         });
 
         // Create 4 columns
-        ['A1', 'A2', 'A3', 'A4'].forEach(blockId => {
+        columns.forEach((colSeats, idx) => {
             const col = document.createElement('div');
             col.className = 'seat-column';
             
-            blocks[blockId].forEach(seat => {
+            colSeats.forEach(seat => {
                 const el = document.createElement('div');
                 el.className = `seat ${seat.status || 'available'}`;
                 let content = `<div class="seat-id">${seat.id}</div>
@@ -384,6 +435,80 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('');
         }
     }
+
+    // Photo Mgmt Logic
+    window.togglePhotoUpload = () => {
+        document.getElementById('photo-upload-container').classList.toggle('hidden');
+    };
+
+    let compressedData = null;
+    const photoInput = document.getElementById('dashboard-photo-input');
+    const saveBtn = document.getElementById('save-photo-btn');
+    const preview = document.getElementById('photo-preview-large');
+    const status = document.getElementById('upload-status');
+
+    if (photoInput) {
+        photoInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            status.innerText = 'Compressing...';
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const MAX = 400;
+                    if (width > height) { if (width > MAX) { height *= MAX / width; width = MAX; } }
+                    else { if (height > MAX) { width *= MAX / height; height = MAX; } }
+                    canvas.width = width; canvas.height = height;
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                    
+                    let q = 0.7;
+                    let dataUrl = canvas.toDataURL('image/jpeg', q);
+                    let size = Math.round((dataUrl.length * 3/4) / 1024);
+                    if (size < 20) { q = 0.9; dataUrl = canvas.toDataURL('image/jpeg', q); }
+                    else if (size > 40) { q = 0.5; dataUrl = canvas.toDataURL('image/jpeg', q); }
+                    
+                    compressedData = dataUrl;
+                    preview.innerHTML = `<img src="${dataUrl}">`;
+                    status.innerText = `Ready (${Math.round((dataUrl.length * 3/4) / 1024)}KB)`;
+                    saveBtn.disabled = false;
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+    }
+
+    window.uploadDashboardPhoto = async () => {
+        if (!compressedData) return;
+        saveBtn.disabled = true;
+        status.innerText = 'Saving...';
+        
+        try {
+            const res = await fetch('/api/upload_photo', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: {{ current_user.id }},
+                    photo: compressedData
+                })
+            });
+            if (res.ok) {
+                status.innerText = 'Saved Successfully!';
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                status.innerText = 'Error saving photo.';
+                saveBtn.disabled = false;
+            }
+        } catch (e) {
+            status.innerText = 'Connection Error.';
+            saveBtn.disabled = false;
+        }
+    };
 });
 </script>
 {% endblock %}

@@ -7,9 +7,9 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 
 load_dotenv()
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import or_, text
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
-from sqlalchemy import or_
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'vrs-secret-key-development-only')
@@ -40,14 +40,19 @@ IST = pytz.timezone('Asia/Kolkata')
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
-    email = db.Column(db.String(150), unique=True, nullable=False)
+    email = db.Column(db.String(150), unique=True, nullable=True)
     password = db.Column(db.String(60), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     phone = db.Column(db.String(20), nullable=False)
     purpose = db.Column(db.String(100))
     description = db.Column(db.Text)
+    profile_photo = db.Column(db.Text, nullable=True) # Store compressed base64
     is_active = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
+    
+    # Admin only comments
+    admin_note_1 = db.Column(db.Text, nullable=True)
+    admin_note_2 = db.Column(db.Text, nullable=True)
     
     # Relationship with Bookings (Cascade Delete ensures bookings are removed if user is deleted)
     bookings = db.relationship('Booking', backref='user', cascade='all, delete-orphan')
@@ -73,20 +78,45 @@ class WaitingRoom(db.Model):
 # Initialize Database
 with app.app_context():
     try:
+        # 1. Migration: Add profile_photo column if missing
+        # We do this first because any query on User model will fail otherwise
+        try:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN profile_photo TEXT'))
+            db.session.commit()
+            print("Migration: Added profile_photo column.")
+        except Exception:
+            db.session.rollback()
+            
+        # 2. Migration: Ensure email is nullable
+        try:
+            db.session.execute(text('ALTER TABLE "user" ALTER COLUMN email DROP NOT NULL'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+        # 3. Migration: Add admin notes
+        try:
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN admin_note_1 TEXT'))
+            db.session.execute(text('ALTER TABLE "user" ADD COLUMN admin_note_2 TEXT'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
         db.create_all()
-        if Seat.query.count() == 0:
-            # A1: 15 seats
-            for row in range(1, 16):
-                db.session.add(Seat(id=f"A1-{row}"))
-            # A2: 20 seats
-            for row in range(1, 21):
-                db.session.add(Seat(id=f"A2-{row}"))
-            # A3: 20 seats
-            for row in range(1, 21):
-                db.session.add(Seat(id=f"A3-{row}"))
-            # A4: 15 seats
-            for row in range(1, 16):
-                db.session.add(Seat(id=f"A4-{row}"))
+        # Reset seats if count != 65 or if old naming convention (A1-1) is found
+        seat_count = Seat.query.count()
+        first_seat = Seat.query.first()
+        if seat_count != 65 or (first_seat and '-' in str(first_seat.id)):
+            print("Resetting seats to numeric 1-65...")
+            # Clear existing seats and bookings to avoid foreign key issues or stale data
+            # Note: In a real app we might want to migrate bookings, but here we reset as requested
+            Booking.query.delete()
+            Seat.query.delete()
+            db.session.commit()
+            
+            for i in range(1, 66):
+                db.session.add(Seat(id=str(i)))
+            db.session.commit()
             
             if not User.query.filter_by(is_admin=True).first():
                 admin_username = os.environ.get('ADMIN_USER', 'admin')
@@ -103,6 +133,7 @@ with app.app_context():
                 )
                 db.session.add(admin)
             db.session.commit()
+            
     except Exception as e:
         print(f"Error initializing database: {e}")
 
@@ -137,8 +168,12 @@ def admin_dashboard():
             'name': user.name,
             'username': user.username,
             'phone': user.phone,
+            'email': user.email,
+            'profile_photo': user.profile_photo,
             'is_active': user.is_active,
             'purpose': user.purpose,
+            'expires_at': active_booking.expires_at.strftime('%Y-%m-%d %H:%M') if active_booking and active_booking.expires_at else 'No Expiry',
+            'admin_note_1': user.admin_note_1,
             'booking': active_booking.seat_id if active_booking else None,
             'shift': active_booking.shift if active_booking else None
         })
@@ -208,7 +243,12 @@ def register():
         username = request.form.get('username')
         email = request.form.get('email')
         
-        if User.query.filter((User.username == username) | (User.email == email)).first():
+        # Check if username or email (if provided) already exists
+        user_query = User.query.filter(User.username == username)
+        if email:
+            user_query = User.query.filter(or_(User.username == username, User.email == email))
+            
+        if user_query.first():
             flash('Username or Email already exists.', 'danger')
             return redirect(url_for('register'))
             
@@ -221,9 +261,26 @@ def register():
         )
         db.session.add(new_user)
         db.session.commit()
+            
         flash('Registration successful! Please wait for admin approval.', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
+
+@app.route('/api/upload_photo', methods=['POST'])
+def upload_photo():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    photo_data = data.get('photo') # Base64 string
+    
+    if not user_id or not photo_data:
+        return jsonify({'success': False, 'message': 'Missing data'}), 400
+        
+    user = User.query.get(user_id)
+    if user:
+        user.profile_photo = photo_data
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False, 'message': 'User not found'}), 404
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -300,28 +357,19 @@ def get_seats():
         else: seat_map[b.seat_id]['pending'].append(data)
 
     # Ensure seats are initialized if they are missing
-    if Seat.query.count() == 0:
-        # A1: 15 seats
-        for row in range(1, 16):
-            db.session.add(Seat(id=f"A1-{row}"))
-        # A2: 20 seats
-        for row in range(1, 21):
-            db.session.add(Seat(id=f"A2-{row}"))
-        # A3: 20 seats
-        for row in range(1, 21):
-            db.session.add(Seat(id=f"A3-{row}"))
-        # A4: 15 seats
-        for row in range(1, 16):
-            db.session.add(Seat(id=f"A4-{row}"))
+    if Seat.query.count() != 65:
+        for i in range(1, 66):
+            if not Seat.query.get(str(i)):
+                db.session.add(Seat(id=str(i)))
         db.session.commit()
 
     all_seats = Seat.query.all()
-    # Sort logically: A1-1, A1-2, ..., A1-10, A2-1, ...
+    # Sort numerically
     def seat_sort_key(s):
-        parts = s.id.split('-')
-        prefix = parts[0] # e.g. "A1"
-        num = int(parts[1]) if len(parts) > 1 else 0
-        return (prefix, num)
+        try:
+            return int(s.id)
+        except:
+            return 0
     
     seats = sorted(all_seats, key=seat_sort_key)
     result = []
@@ -428,6 +476,81 @@ def remove_seat():
 def get_waiting_room():
     waiting = WaitingRoom.query.all()
     return jsonify([{'user_name': w.user_name, 'seat': w.removed_from_seat} for w in waiting])
+
+# --- Admin Member Management API ---
+@app.route('/api/admin/user/<int:user_id>', methods=['GET'])
+@login_required
+def get_user_details(user_id):
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    user = User.query.get(user_id)
+    if not user: return jsonify({'success': False}), 404
+    
+    # Get active booking if any
+    booking = Booking.query.filter_by(user_id=user.id, status='approved').first()
+    
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'name': user.name,
+        'phone': user.phone,
+        'email': user.email,
+        'is_active': user.is_active,
+        'profile_photo': user.profile_photo,
+        'admin_note_1': user.admin_note_1,
+        'admin_note_2': user.admin_note_2,
+        'password': user.password,
+        'booking_id': booking.id if booking else None,
+        'expires_at': booking.expires_at.strftime('%Y-%m-%dT%H:%M') if booking and booking.expires_at else None
+    })
+
+@app.route('/api/admin/user/update', methods=['POST'])
+@login_required
+def update_user():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    data = request.get_json()
+    user = User.query.get(data.get('user_id'))
+    if not user: return jsonify({'success': False}), 404
+    
+    user.name = data.get('name', user.name)
+    user.phone = data.get('phone', user.phone)
+    user.username = data.get('username', user.username)
+    user.email = data.get('email', user.email)
+    user.admin_note_1 = data.get('admin_note_1', user.admin_note_1)
+    user.admin_note_2 = data.get('admin_note_2', user.admin_note_2)
+    user.is_active = data.get('is_active', user.is_active)
+    
+    new_password = data.get('password')
+    if new_password and new_password != user.password:
+        user.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+    
+    if data.get('profile_photo'):
+        user.profile_photo = data.get('profile_photo')
+        
+    # Update membership duration if booking exists
+    if data.get('expires_at'):
+        booking = Booking.query.filter_by(user_id=user.id, status='approved').first()
+        if booking:
+            try:
+                # Remove 'T' and handle ISO format
+                expiry_str = data.get('expires_at')
+                booking.expires_at = datetime.fromisoformat(expiry_str)
+            except Exception as e:
+                print(f"Expiry update error: {e}")
+            
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/admin/user/delete', methods=['POST'])
+@login_required
+def delete_user():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    data = request.get_json()
+    user = User.query.get(data.get('user_id'))
+    if user and not user.is_admin:
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False, 'message': 'Cannot delete admin or user not found'})
 
 if __name__ == '__main__':
     app.run(debug=True, port=9090)

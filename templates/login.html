@@ -55,6 +55,15 @@ togglePassword.addEventListener('click', function (e) {
     // toggle the eye slash icon
     this.classList.toggle('fa-eye-slash');
 });
+
+// Check for registration success
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('registered')) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success';
+    alertDiv.innerHTML = '<i class="fas fa-check-circle"></i> <span>Registration complete! Please wait for admin approval.</span>';
+    document.querySelector('.auth-header').after(alertDiv);
+}
 </script>
 
 <style>
