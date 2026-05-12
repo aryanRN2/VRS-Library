@@ -137,6 +137,13 @@
                 <h2>Member Directory</h2>
                 <p>Manage all registered users and their current seat status.</p>
             </div>
+            
+            <div class="filter-bar">
+                <button class="filter-tab active" onclick="setFilter(this, 'all')">All Members</button>
+                <button class="filter-tab" onclick="setFilter(this, 'active')">Active</button>
+                <button class="filter-tab" onclick="setFilter(this, 'frozen')">Frozen</button>
+                <button class="filter-tab" onclick="setFilter(this, 'pending')">Pending</button>
+            </div>
 
             <div class="registration-table-container glass-card">
                 <div class="table-responsive">
@@ -148,42 +155,48 @@
                                 <th style="width: 250px;">Expiry & Notes</th>
                                 <th style="width: 120px;">Status</th>
                                 <th style="width: 150px;">Booking</th>
-                                <th style="width: 150px;">Actions</th>
+                                <th style="width: 260px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for user in active_users %}
-                            <tr>
+                            <tr id="user-row-{{ user.id }}" class="member-row" data-status="{{ user.status }}">
                                 <td class="user-cell">
-                                    {% if user.profile_photo %}
-                                        <div class="avatar-large-table"><img src="{{ user.profile_photo }}" alt="Profile"></div>
-                                    {% else %}
-                                        <div class="avatar-table">{{ user.name[0]|upper }}</div>
-                                    {% endif %}
+                                    <div id="row-avatar-{{ user.id }}">
+                                        {% if user.profile_photo %}
+                                            <div class="avatar-large-table"><img src="{{ user.profile_photo }}" alt="Profile"></div>
+                                        {% else %}
+                                            <div class="avatar-table">{{ user.name[0]|upper }}</div>
+                                        {% endif %}
+                                    </div>
                                     <div class="user-name-stack">
-                                        <span class="u-name-large">{{ user.name }}</span>
-                                        <span class="u-username-small">@{{ user.username }}</span>
+                                        <span class="u-name-large" id="row-name-{{ user.id }}">{{ user.name }}</span>
+                                        <span class="u-username-small" id="row-username-{{ user.id }}">@{{ user.username }}</span>
                                     </div>
                                 </td>
                                 <td>
                                     <div class="detail-stack">
-                                        <span><i class="fas fa-phone"></i> {{ user.phone }}</span>
-                                        <span class="u-email-small">{{ user.email or 'No Email' }}</span>
+                                        <span id="row-phone-container-{{ user.id }}"><i class="fas fa-phone"></i> <span id="row-phone-{{ user.id }}">{{ user.phone }}</span></span>
+                                        <span class="u-email-small" id="row-email-{{ user.id }}">{{ user.email or 'No Email' }}</span>
                                         <span class="purpose-badge small">{{ user.purpose }}</span>
                                     </div>
                                 </td>
                                 <td>
                                     <div class="detail-stack">
-                                        <span class="expiry-text"><i class="fas fa-calendar-alt"></i> {{ user.expires_at or 'No Expiry' }}</span>
-                                        <span class="note-summary">{{ user.admin_note_1 or '' }}</span>
+                                        <span class="expiry-text" id="row-expiry-{{ user.id }}"><i class="fas fa-calendar-alt"></i> {{ user.expires_at or 'No Expiry' }}</span>
+                                        <span class="note-summary" id="row-note-{{ user.id }}">{{ user.admin_note_1 or '' }}</span>
                                     </div>
                                 </td>
                                 <td>
-                                    {% if user.is_active %}
-                                        <span class="status-tag active">Active</span>
-                                    {% else %}
-                                        <span class="status-tag inactive">Pending</span>
-                                    {% endif %}
+                                    <div id="row-status-container-{{ user.id }}">
+                                        {% if user.status == 'active' %}
+                                            <span class="status-tag active">Active</span>
+                                        {% elif user.status == 'frozen' %}
+                                            <span class="status-tag frozen">Frozen</span>
+                                        {% else %}
+                                            <span class="status-tag pending">Pending</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                                 <td>
                                     {% if user.booking %}
@@ -298,11 +311,17 @@
                     <div class="input-row">
                         <div class="form-group">
                             <label>Full Name</label>
-                            <input type="text" id="edit-name" class="glass-input" required>
+                            <div class="input-with-cut">
+                                <input type="text" id="edit-name" class="glass-input" required>
+                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-name').value=''">&times;</button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>Phone Number</label>
-                            <input type="text" id="edit-phone" class="glass-input" required>
+                            <div class="input-with-cut">
+                                <input type="text" id="edit-phone" class="glass-input" required>
+                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-phone').value=''">&times;</button>
+                            </div>
                         </div>
                     </div>
                     
@@ -313,7 +332,10 @@
                         </div>
                         <div class="form-group">
                             <label>Email (Optional)</label>
-                            <input type="email" id="edit-email" class="glass-input">
+                            <div class="input-with-cut">
+                                <input type="email" id="edit-email" class="glass-input">
+                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-email').value=''">&times;</button>
+                            </div>
                         </div>
                     </div>
                     
@@ -322,9 +344,19 @@
                         <input type="text" id="edit-password" class="glass-input" title="Type a new password to change it">
                     </div>
                     
-                    <div class="form-group">
-                        <label>Membership Expiry (Click to Change)</label>
-                        <input type="datetime-local" id="edit-expires-at" class="glass-input">
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Membership Expiry (Click to Change)</label>
+                            <input type="datetime-local" id="edit-expires-at" class="glass-input">
+                        </div>
+                        <div class="form-group">
+                            <label>Assigned Seat (1-65)</label>
+                            <div style="position: relative;" class="input-with-cut">
+                                <input type="number" id="edit-seat-id" class="glass-input" min="1" max="65" placeholder="e.g. 15">
+                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-seat-id').value=''; document.getElementById('seat-availability-hint').innerHTML=''">&times;</button>
+                                <span id="seat-availability-hint" style="position: absolute; right: 35px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; font-weight: 700;"></span>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Admin Comment Boxes -->
@@ -408,6 +440,7 @@
 .action-btn { padding: 0.5rem 0.8rem; border-radius: 8px; text-decoration: none; font-size: 0.8rem; font-weight: 600; transition: 0.2s; white-space: nowrap; }
 .action-btn.approve { background: #22c55e; color: #fff; }
 .action-btn.approve.small { padding: 4px 8px; font-size: 0.7rem; }
+.action-flex { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 
 .status-tag { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
 .status-tag.active { background: #dcfce7; color: #166534; }
@@ -437,6 +470,14 @@
 
 .mobile-admin-header { display: flex; padding: 1rem; background: #fff; border-bottom: 1px solid #e2e8f0; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
 .header-actions { display: flex; gap: 0.5rem; }
+.filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; padding: 0.5rem; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+.filter-tab { padding: 0.5rem 1.25rem; border: none; background: transparent; color: #64748b; font-weight: 600; font-size: 0.875rem; border-radius: 8px; cursor: pointer; transition: 0.3s; }
+.filter-tab.active { background: #fff; color: #1e293b; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+.filter-tab:hover:not(.active) { color: #1e293b; background: #f1f5f9; }
+.status-tag.frozen { background: #fef3c7; color: #92400e; }
+.input-with-cut { position: relative; display: flex; align-items: center; }
+.cut-btn { position: absolute; right: 8px; background: #f1f5f9; border: none; width: 24px; height: 24px; border-radius: 50%; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2rem; line-height: 1; transition: 0.2s; z-index: 5; }
+.cut-btn:hover { background: #e2e8f0; color: #1e293b; }
 
 @media (min-width: 1025px) {
     .mobile-admin-header { background: transparent; border-bottom: none; position: fixed; top: 1.5rem; left: 1.5rem; width: auto; z-index: 1001; transition: left 0.4s ease; }
@@ -569,7 +610,6 @@ async function sendWhatsApp(phone, message) {
 
 // Member Edit Logic
 function openEditModal(userId) {
-    console.log("Opening edit modal for user:", userId);
     const modal = document.getElementById('edit-user-modal');
     modal.classList.remove('hidden');
     
@@ -586,11 +626,25 @@ function openEditModal(userId) {
             document.getElementById('edit-expires-at').value = user.expires_at || '';
             document.getElementById('edit-note-1').value = user.admin_note_1 || '';
             document.getElementById('edit-note-2').value = user.admin_note_2 || '';
+            document.getElementById('edit-expires-at').value = user.expires_at || '';
+            document.getElementById('edit-seat-id').value = user.seat_id || '';
             
+            // Check initial seat availability
+            if (user.seat_id) checkSeatAvailability(user.seat_id, user.shift, userId);
+            else document.getElementById('seat-availability-hint').innerHTML = '';
+
             const preview = document.getElementById('edit-avatar-preview');
             preview.innerHTML = user.profile_photo ? `<img src="${user.profile_photo}">` : `<i class="fas fa-user-circle"></i>`;
+            document.getElementById('edit-user-modal').classList.remove('hidden');
         })
-        .catch(err => alert('Error loading user data'));
+        .catch(err => {
+            console.error(err);
+            alert('Error loading user data');
+        });
+}
+
+function closeEditModal() {
+    document.getElementById('edit-user-modal').classList.add('hidden');
 }
 
 function resetEditChanges() {
@@ -639,6 +693,7 @@ document.getElementById('edit-user-form').onsubmit = async function(e) {
         password: document.getElementById('edit-password').value,
         is_active: document.getElementById('edit-is-active').checked,
         expires_at: document.getElementById('edit-expires-at').value,
+        seat_id: document.getElementById('edit-seat-id').value,
         admin_note_1: document.getElementById('edit-note-1').value,
         admin_note_2: document.getElementById('edit-note-2').value,
         profile_photo: editCompressedPhoto
@@ -660,7 +715,7 @@ document.getElementById('edit-user-form').onsubmit = async function(e) {
             document.getElementById(`row-email-${userId}`).innerText = payload.email || 'No Email';
             document.getElementById(`row-expiry-${userId}`).innerHTML = `<i class="fas fa-calendar-alt"></i> ${payload.expires_at || 'No Expiry'}`;
             document.getElementById(`row-note-${userId}`).innerText = payload.admin_note_1 || '';
-            document.getElementById(`row-status-${userId}`).innerHTML = payload.is_active 
+            document.getElementById(`row-status-container-${userId}`).innerHTML = payload.is_active 
                 ? '<span class="status-tag active">Active</span>' 
                 : '<span class="status-tag inactive">Pending</span>';
             
@@ -672,25 +727,79 @@ document.getElementById('edit-user-form').onsubmit = async function(e) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-save"></i> Save All Changes';
         } else {
-            alert('Update failed');
+            const errorData = await res.json();
+            alert('Update failed: ' + (errorData.message || 'Unknown error'));
             btn.disabled = false;
-            btn.innerText = 'Save All Changes';
+            btn.innerHTML = '<i class="fas fa-save"></i> Save All Changes';
         }
     } catch (e) {
-        alert('Server error');
+        alert('Connection error: ' + e.message);
         btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Save All Changes';
     }
 };
 
-function deleteUser() {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+async function checkSeatAvailability(seatId, shift, userId) {
+    const hint = document.getElementById('seat-availability-hint');
+    if (!seatId || seatId < 1 || seatId > 65) {
+        hint.innerHTML = '';
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/admin/check_seat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ seat_id: seatId, shift: shift, user_id: userId })
+        });
+        const data = await res.json();
+        if (data.available) {
+            hint.innerHTML = '<span style="color: #16a34a;">FREE</span>';
+        } else {
+            hint.innerHTML = `<span style="color: #dc2626;" title="Occupied by ${data.owner}">BOOKED</span>`;
+        }
+    } catch (e) {
+        hint.innerHTML = '';
+    }
+}
+
+document.getElementById('edit-seat-id').addEventListener('input', function(e) {
     const userId = document.getElementById('edit-user-id').value;
+    checkSeatAvailability(this.value, 'morning', userId); 
+});
+
+function deleteUser() {
+    if (!confirm('WARNING: This will PERMANENTLY delete this user and all their records! Are you sure?')) return;
+    if (!confirm('FINAL CONFIRMATION: You are about to erase this member forever. This cannot be undone. Confirm?')) return;
+    
+    const userId = document.getElementById('edit-user-id').value;
+    
     fetch('/api/admin/user/delete', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ user_id: userId })
-    }).then(res => res.ok ? location.reload() : alert('Delete failed'))
-      .catch(() => alert('Server error'));
+    }).then(res => {
+        if (res.ok) {
+            const row = document.getElementById(`user-row-${userId}`);
+            if (row) row.remove();
+            closeEditModal();
+        } else {
+            alert('Delete failed');
+        }
+    }).catch(() => alert('Server error'));
+}
+
+function setFilter(btn, status) {
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    
+    document.querySelectorAll('.member-row').forEach(row => {
+        if (status === 'all' || row.dataset.status === status) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
 }
 </script>
 {% endblock %}

@@ -49,6 +49,7 @@ class User(db.Model, UserMixin):
     profile_photo = db.Column(db.Text, nullable=True) # Store compressed base64
     is_active = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(20), default='pending') # pending, active, frozen
     
     # Admin only comments
     admin_note_1 = db.Column(db.Text, nullable=True)
@@ -149,14 +150,15 @@ def admin_dashboard():
         return redirect(url_for('membership'))
     
     stats = {
-        'pending_users': User.query.filter_by(is_active=False, is_admin=False).count(),
-        'active_members': User.query.filter_by(is_active=True, is_admin=False).count(),
+        'pending_users': User.query.filter_by(status='pending', is_admin=False).count(),
+        'active_members': User.query.filter_by(status='active', is_admin=False).count(),
+        'frozen_members': User.query.filter_by(status='frozen', is_admin=False).count(),
         'total_seats': Seat.query.count(),
         'pending_bookings': Booking.query.filter_by(status='pending').count(),
         'active_bookings': Booking.query.filter_by(status='approved').count()
     }
     
-    pending_users = User.query.filter_by(is_active=False, is_admin=False).order_by(User.id.desc()).all()
+    pending_users = User.query.filter_by(status='pending', is_admin=False).order_by(User.id.desc()).all()
     all_users = User.query.filter_by(is_admin=False).order_by(User.name).all()
     
     # Enrich users with booking info
@@ -171,6 +173,7 @@ def admin_dashboard():
             'email': user.email,
             'profile_photo': user.profile_photo,
             'is_active': user.is_active,
+            'status': user.status,
             'purpose': user.purpose,
             'expires_at': active_booking.expires_at.strftime('%Y-%m-%d %H:%M') if active_booking and active_booking.expires_at else 'No Expiry',
             'admin_note_1': user.admin_note_1,
@@ -232,6 +235,7 @@ def approve_user(user_id):
     user = User.query.get(user_id)
     if user:
         user.is_active = True
+        user.status = 'active'
         db.session.commit()
         flash(f'Account for {user.name} approved successfully!', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -427,6 +431,9 @@ def book_seat():
     if Booking.query.filter_by(seat_id=seat_id, shift=shift, status='approved').first():
         return jsonify({'success': False, 'message': 'Seat already booked.'}), 400
         
+    if current_user.status == 'frozen':
+        return jsonify({'success': False, 'message': 'Your account is frozen. Please contact admin to resume booking.'}), 403
+        
     plan = data.get('plan', '1 Month')
     new_booking = Booking(seat_id=seat_id, user_id=current_user.id, shift=shift, status='pending', requested_plan=plan)
     db.session.add(new_booking)
@@ -503,45 +510,92 @@ def get_user_details(user_id):
         'admin_note_2': user.admin_note_2,
         'password': user.password,
         'booking_id': booking.id if booking else None,
-        'expires_at': booking.expires_at.strftime('%Y-%m-%dT%H:%M') if booking and booking.expires_at else None
+        'expires_at': booking.expires_at.strftime('%Y-%m-%dT%H:%M') if booking and booking.expires_at else None,
+        'seat_id': booking.seat_id if booking else '',
+        'shift': booking.shift if booking else 'morning',
+        'status': user.status
     })
+
+@app.route('/api/admin/check_seat', methods=['POST'])
+@login_required
+def check_seat():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    data = request.get_json()
+    seat_id = str(data.get('seat_id'))
+    shift = data.get('shift', 'morning')
+    user_id = data.get('user_id')
+    
+    if not seat_id or seat_id == '': return jsonify({'available': True})
+    
+    # Check if seat is taken by ANY OTHER user in the same shift
+    existing = Booking.query.filter(
+        Booking.seat_id == seat_id,
+        Booking.shift == shift,
+        Booking.status == 'approved',
+        Booking.user_id != user_id
+    ).first()
+    
+    if existing:
+        return jsonify({'available': False, 'owner': existing.user.name})
+    return jsonify({'available': True})
 
 @app.route('/api/admin/user/update', methods=['POST'])
 @login_required
 def update_user():
     if not current_user.is_admin: return jsonify({'success': False}), 403
-    data = request.get_json()
-    user = User.query.get(data.get('user_id'))
-    if not user: return jsonify({'success': False}), 404
-    
-    user.name = data.get('name', user.name)
-    user.phone = data.get('phone', user.phone)
-    user.username = data.get('username', user.username)
-    user.email = data.get('email', user.email)
-    user.admin_note_1 = data.get('admin_note_1', user.admin_note_1)
-    user.admin_note_2 = data.get('admin_note_2', user.admin_note_2)
-    user.is_active = data.get('is_active', user.is_active)
-    
-    new_password = data.get('password')
-    if new_password:
-        user.password = new_password
-    
-    if data.get('profile_photo'):
-        user.profile_photo = data.get('profile_photo')
+    try:
+        data = request.get_json()
+        user = User.query.get(data.get('user_id'))
+        if not user: return jsonify({'success': False, 'message': 'User not found'}), 404
         
-    # Update membership duration if booking exists
-    if data.get('expires_at'):
-        booking = Booking.query.filter_by(user_id=user.id, status='approved').first()
-        if booking:
-            try:
-                # Remove 'T' and handle ISO format
-                expiry_str = data.get('expires_at')
-                booking.expires_at = datetime.fromisoformat(expiry_str)
-            except Exception as e:
-                print(f"Expiry update error: {e}")
+        user.name = data.get('name', user.name)
+        user.phone = data.get('phone', user.phone)
+        user.username = data.get('username', user.username)
+        user.email = data.get('email', user.email)
+        user.admin_note_1 = data.get('admin_note_1', user.admin_note_1)
+        user.admin_note_2 = data.get('admin_note_2', user.admin_note_2)
+        
+        # Status management: pending -> active/frozen
+        is_active_toggle = bool(data.get('is_active'))
+        if user.status != 'pending':
+            user.status = 'active' if is_active_toggle else 'frozen'
+        
+        user.is_active = is_active_toggle # Keep legacy boolean for compatibility
+        
+        new_password = data.get('password')
+        if new_password:
+            user.password = new_password
+        
+        if data.get('profile_photo'):
+            user.profile_photo = data.get('profile_photo')
             
-    db.session.commit()
-    return jsonify({'success': True})
+        if data.get('expires_at'):
+            booking = Booking.query.filter_by(user_id=user.id, status='approved').first()
+            if booking:
+                try:
+                    expiry_str = data.get('expires_at')
+                    # Handle potential ISO format with 'T'
+                    booking.expires_at = datetime.fromisoformat(expiry_str.replace(' ', 'T'))
+                except Exception as e:
+                    print(f"Expiry update error: {e}")
+            
+        # Update seat_id if provided
+        seat_id = data.get('seat_id')
+        if seat_id:
+            if not booking:
+                # Create a new approved booking if they don't have one
+                booking = Booking(user_id=user.id, seat_id=str(seat_id), shift='morning', status='approved')
+                db.session.add(booking)
+            else:
+                booking.seat_id = str(seat_id)
+                booking.status = 'approved' # Ensure it's approved if seat is assigned
+                
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Update error: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/admin/user/delete', methods=['POST'])
 @login_required
