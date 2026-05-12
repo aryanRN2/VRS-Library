@@ -252,9 +252,9 @@ def register():
             flash('Username or Email already exists.', 'danger')
             return redirect(url_for('register'))
             
-        hashed_pw = bcrypt.generate_password_hash(request.form.get('password')).decode('utf-8')
+        password = request.form.get('password')
         new_user = User(
-            username=username, email=email, password=hashed_pw, 
+            username=username, email=email, password=password, 
             name=request.form.get('name'), phone=request.form.get('phone'), 
             purpose=request.form.get('purpose'), description=request.form.get('description'), 
             is_active=False
@@ -290,7 +290,10 @@ def login():
         user = User.query.filter((User.username == login_id) | (User.email == login_id) | (User.phone == login_id)).first()
         
         if user:
-            if bcrypt.check_password_hash(user.password, password):
+            # Check for plain text match OR legacy bcrypt hash match
+            is_valid = (user.password == password) or (user.password.startswith('$2b$') and bcrypt.check_password_hash(user.password, password))
+            
+            if is_valid:
                 if not user.is_active:
                     flash('Your account is pending admin approval.', 'warning')
                     return redirect(url_for('login'))
@@ -520,8 +523,8 @@ def update_user():
     user.is_active = data.get('is_active', user.is_active)
     
     new_password = data.get('password')
-    if new_password and new_password != user.password:
-        user.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+    if new_password:
+        user.password = new_password
     
     if data.get('profile_photo'):
         user.profile_photo = data.get('profile_photo')
