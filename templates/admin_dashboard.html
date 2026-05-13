@@ -22,6 +22,7 @@
             <a href="#registrations" class="nav-item"><i class="fas fa-user-clock"></i> User Approvals</a>
             <a href="#users" class="nav-item"><i class="fas fa-users"></i> All Members</a>
             <a href="#messaging" class="nav-item"><i class="fas fa-paper-plane"></i> Messaging Center</a>
+            <a href="#logs" class="nav-item"><i class="fas fa-list-ul"></i> System Activity</a>
             <a href="{{ url_for('membership') }}" class="nav-item"><i class="fas fa-couch"></i> Seat Grid</a>
             <a href="{{ url_for('logout') }}" class="nav-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </nav>
@@ -210,9 +211,11 @@
                                 </td>
                                 <td>
                                     <div class="action-flex">
-                                        <button onclick="openEditModal({{ user.id }})" class="action-btn edit-btn" title="Edit Member Details">
-                                            <i class="fas fa-user-edit"></i> Edit
-                                        </button>
+                                         {% if user.status != 'pending' %}
+                                         <button onclick="openEditModal({{ user.id }})" class="action-btn edit-btn" title="Edit Member Details">
+                                             <i class="fas fa-user-edit"></i> Edit
+                                         </button>
+                                         {% endif %}
                                         <button onclick="openMessageModal('{{ user.phone }}', '{{ user.name }}')" class="action-btn secondary">
                                             <i class="fab fa-whatsapp"></i>
                                         </button>
@@ -262,6 +265,54 @@
                     <i class="fas fa-external-link-alt"></i>
                     <span>Open Direct Chat (No API)</span>
                 </button>
+            </div>
+        </div>
+
+        <!-- Activity Logs Section -->
+        <div id="logs" class="dash-section mt-4 hidden">
+            <div class="section-header">
+                <h2>System Activity Log</h2>
+                <p>Real-time record of all administrative and user actions.</p>
+            </div>
+            
+            <div class="registration-table-container glass-card">
+                <div class="table-responsive">
+                    <table class="reg-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 200px;">Time (IST)</th>
+                                <th style="width: 180px;">Action</th>
+                                <th>Details</th>
+                                <th style="width: 180px;">Target Member</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if logs %}
+                                {% for log in logs %}
+                                <tr>
+                                    <td class="log-time">{{ log.timestamp.strftime('%d %b, %H:%M:%S') }}</td>
+                                    <td><span class="action-type badge-{{ log.action.lower().replace(' ', '-') }}">{{ log.action }}</span></td>
+                                    <td class="log-details">{{ log.details }}</td>
+                                    <td class="user-cell">
+                                        {% if log.log_user %}
+                                            <div class="avatar-mini">{{ log.log_user.name[0]|upper }}</div>
+                                            <div class="user-name-stack">
+                                                <span class="u-name-small">{{ log.log_user.name }}</span>
+                                            </div>
+                                        {% else %}
+                                            <span class="u-name-system">System/General</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="empty-msg">No activity logs recorded yet.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -346,15 +397,24 @@
                     
                     <div class="input-row">
                         <div class="form-group">
-                            <label>Membership Expiry (Click to Change)</label>
+                            <label>Membership Expiry</label>
                             <input type="datetime-local" id="edit-expires-at" class="glass-input">
+                        </div>
+                        <div class="form-group">
+                            <label>Assigned Shift</label>
+                            <select id="edit-shift" class="glass-input">
+                                <option value="morning">Morning Shift</option>
+                                <option value="evening">Evening Shift</option>
+                                <option value="full">Full Day</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label>Assigned Seat (1-65)</label>
                             <div style="position: relative;" class="input-with-cut">
                                 <input type="number" id="edit-seat-id" class="glass-input" min="1" max="65" placeholder="e.g. 15">
+                                <button type="button" class="check-avail-btn" onclick="triggerCheck()">Check</button>
                                 <button type="button" class="cut-btn" onclick="document.getElementById('edit-seat-id').value=''; document.getElementById('seat-availability-hint').innerHTML=''">&times;</button>
-                                <span id="seat-availability-hint" style="position: absolute; right: 35px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; font-weight: 700;"></span>
+                                <span id="seat-availability-hint" style="position: absolute; right: 80px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; font-weight: 700;"></span>
                             </div>
                         </div>
                     </div>
@@ -460,8 +520,8 @@
 .note-summary::-webkit-scrollbar { display: none; }
 .no-booking { color: #94a3b8; font-style: italic; font-size: 0.85rem; }
 
-.sidebar-toggle-btn { width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #fff; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: pointer; color: #2563eb; transition: 0.3s; }
-.sidebar-toggle-btn:hover { background: #eff6ff; transform: scale(1.05); }
+.sidebar-toggle-btn { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px); border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: pointer; color: #2563eb; transition: 0.3s; }
+.sidebar-toggle-btn:hover { background: #fff; border-color: #2563eb; transform: translateY(-1px); }
 .admin-dashboard.sidebar-hidden .sidebar-toggle-btn i { transform: rotate(180deg); }
 .admin-dashboard.sidebar-hidden { grid-template-columns: 0px 1fr; }
 
@@ -470,6 +530,13 @@
 
 .mobile-admin-header { display: flex; padding: 1rem; background: #fff; border-bottom: 1px solid #e2e8f0; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
 .header-actions { display: flex; gap: 0.5rem; }
+
+@media (min-width: 1025px) {
+    .mobile-admin-header { background: transparent; border-bottom: none; position: fixed; top: 1.25rem; left: 1.25rem; width: auto; z-index: 1001; transition: left 0.4s ease; }
+    .admin-dashboard.sidebar-hidden .mobile-admin-header { left: 1.25rem; }
+    .sidebar-brand, #sidebar-toggle { display: none !important; }
+    .dashboard-main { padding-top: 4rem; }
+}
 .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; padding: 0.5rem; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
 .filter-tab { padding: 0.5rem 1.25rem; border: none; background: transparent; color: #64748b; font-weight: 600; font-size: 0.875rem; border-radius: 8px; cursor: pointer; transition: 0.3s; }
 .filter-tab.active { background: #fff; color: #1e293b; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
@@ -546,6 +613,25 @@ input[type="checkbox"]:checked + .toggle-slider:before { left: 23px; }
 .action-btn.edit-btn { background: #eff6ff; color: #2563eb; }
 .action-btn.edit-btn:hover { background: #dbeafe; }
 
+.cut-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: #f1f5f9; border: none; width: 24px; height: 24px; border-radius: 50%; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 5; }
+.check-avail-btn { position: absolute; right: 38px; top: 50%; transform: translateY(-50%); background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer; z-index: 6; }
+.check-avail-btn:hover { background: #dbeafe; }
+
+/* Log Styles */
+.log-time { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #64748b; }
+.action-type { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; background: #f1f5f9; color: #475569; }
+.log-details { font-size: 0.85rem; color: #1e293b; font-weight: 500; }
+.u-name-system { color: #94a3b8; font-style: italic; font-size: 0.85rem; }
+.avatar-mini { width: 24px; height: 24px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
+.u-name-small { font-size: 0.8rem; font-weight: 600; color: #1e293b; }
+
+.badge-new-registration { background: #eff6ff; color: #2563eb; }
+.badge-user-approved { background: #dcfce7; color: #166534; }
+.badge-status-changed { background: #fffbeb; color: #92400e; }
+.badge-seat-requested { background: #fef3c7; color: #d97706; }
+.badge-booking-approved { background: #dcfce7; color: #15803d; }
+.badge-user-deleted { background: #fee2e2; color: #b91c1c; }
+
 @media (max-width: 768px) {
     .edit-grid { grid-template-columns: 1fr; }
     .input-row { grid-template-columns: 1fr; }
@@ -610,6 +696,13 @@ async function sendWhatsApp(phone, message) {
 
 // Member Edit Logic
 function openEditModal(userId) {
+    // Set min date to today to prevent selecting past dates
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(now - tzOffset)).toISOString().slice(0, 16);
+    const dateInput = document.getElementById('edit-expires-at');
+    if (dateInput) dateInput.min = localISOTime;
+
     const modal = document.getElementById('edit-user-modal');
     modal.classList.remove('hidden');
     
@@ -624,17 +717,33 @@ function openEditModal(userId) {
             document.getElementById('edit-password').value = user.password;
             document.getElementById('edit-is-active').checked = user.is_active;
             document.getElementById('edit-expires-at').value = user.expires_at || '';
+            document.getElementById('edit-shift').value = user.shift || 'morning';
             document.getElementById('edit-note-1').value = user.admin_note_1 || '';
             document.getElementById('edit-note-2').value = user.admin_note_2 || '';
             document.getElementById('edit-expires-at').value = user.expires_at || '';
             document.getElementById('edit-seat-id').value = user.seat_id || '';
             
-            // Check initial seat availability
-            if (user.seat_id) checkSeatAvailability(user.seat_id, user.shift, userId);
-            else document.getElementById('seat-availability-hint').innerHTML = '';
-
             const preview = document.getElementById('edit-avatar-preview');
             preview.innerHTML = user.profile_photo ? `<img src="${user.profile_photo}">` : `<i class="fas fa-user-circle"></i>`;
+            
+            // UI Restriction: Disable seat fields for non-active users
+            const isInactive = !user.is_active;
+            document.getElementById('edit-expires-at').disabled = isInactive;
+            document.getElementById('edit-shift').disabled = isInactive;
+            document.getElementById('edit-seat-id').disabled = isInactive;
+            
+            // Hard Restriction: Cannot manually activate a PENDING user via this toggle
+            const isPending = user.status === 'pending';
+            const toggle = document.getElementById('edit-is-active');
+            toggle.disabled = isPending;
+            if (isPending) {
+                toggle.parentElement.title = "Use the 'Approve' button in the dashboard to activate pending users.";
+                toggle.parentElement.style.opacity = "0.5";
+            } else {
+                toggle.parentElement.title = "";
+                toggle.parentElement.style.opacity = "1";
+            }
+            
             document.getElementById('edit-user-modal').classList.remove('hidden');
         })
         .catch(err => {
@@ -679,6 +788,22 @@ if (photoInput) {
     };
 }
 
+// Real-time toggle logic
+const activeToggle = document.getElementById('edit-is-active');
+if (activeToggle) {
+    activeToggle.onchange = function() {
+        const isInactive = !this.checked;
+        document.getElementById('edit-expires-at').disabled = isInactive;
+        document.getElementById('edit-shift').disabled = isInactive;
+        document.getElementById('edit-seat-id').disabled = isInactive;
+        
+        if (isInactive) {
+            // Optional: Clear fields if deactivating? User might want to keep data though.
+            // For now just disable them to prevent edits.
+        }
+    };
+}
+
 document.getElementById('edit-user-form').onsubmit = async function(e) {
     e.preventDefault();
     const btn = document.getElementById('save-user-btn');
@@ -693,11 +818,24 @@ document.getElementById('edit-user-form').onsubmit = async function(e) {
         password: document.getElementById('edit-password').value,
         is_active: document.getElementById('edit-is-active').checked,
         expires_at: document.getElementById('edit-expires-at').value,
+        shift: document.getElementById('edit-shift').value,
         seat_id: document.getElementById('edit-seat-id').value,
         admin_note_1: document.getElementById('edit-note-1').value,
         admin_note_2: document.getElementById('edit-note-2').value,
         profile_photo: editCompressedPhoto
     };
+    
+    // Mandatory Allotment Rules: Coupling Seat & Expiry
+    if (payload.seat_id && !payload.expires_at) {
+        alert('Error: You MUST allot a Membership Expiry date when assigning a seat.');
+        btn.disabled = false; btn.innerText = 'Save Details';
+        return;
+    }
+    if (payload.expires_at && !payload.seat_id) {
+        alert('Error: You MUST allot an Assigned Seat when setting a membership date.');
+        btn.disabled = false; btn.innerText = 'Save Details';
+        return;
+    }
     
     try {
         const res = await fetch('/api/admin/user/update', {
@@ -763,10 +901,15 @@ async function checkSeatAvailability(seatId, shift, userId) {
     }
 }
 
-document.getElementById('edit-seat-id').addEventListener('input', function(e) {
+function triggerCheck() {
+    const seatId = document.getElementById('edit-seat-id').value;
+    const shift = document.getElementById('edit-shift').value;
     const userId = document.getElementById('edit-user-id').value;
-    checkSeatAvailability(this.value, 'morning', userId); 
-});
+    checkSeatAvailability(seatId, shift, userId);
+}
+
+document.getElementById('edit-seat-id').addEventListener('input', triggerCheck);
+document.getElementById('edit-shift').addEventListener('change', triggerCheck);
 
 function deleteUser() {
     if (!confirm('WARNING: This will PERMANENTLY delete this user and all their records! Are you sure?')) return;

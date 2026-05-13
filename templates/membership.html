@@ -240,6 +240,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const bookingModal = document.getElementById('booking-modal');
     const approvalModal = document.getElementById('approval-modal');
     const expiryInput = document.getElementById('expiry-date-input');
+    
+    // Prevent selecting past dates
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(now - tzOffset)).toISOString().slice(0, 16);
+    if (expiryInput) expiryInput.min = localISOTime;
 
     // Handle Plan Selection (Member View)
     document.querySelectorAll('.plan-btn').forEach(btn => btn.onclick = function() {
@@ -344,6 +350,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('user-requested-plan').innerText = plan;
         document.getElementById('requests-list').classList.add('hidden');
         document.getElementById('allotment-controls').classList.remove('hidden');
+        
+        // Reset min date on every open
+        const now = new Date();
+        const tzOffset = now.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(now - tzOffset)).toISOString().slice(0, 16);
+        if (expiryInput) expiryInput.min = localISOTime;
         
         // Auto-select preset based on user request
         if (plan === '3 Days Trial') {
