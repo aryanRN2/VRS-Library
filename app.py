@@ -9,7 +9,7 @@ load_dotenv()
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_, text
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_bcrypt import Bcrypt
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'vrs-secret-key-development-only')
@@ -30,7 +30,6 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -122,15 +121,15 @@ with app.app_context():
             if not User.query.filter_by(is_admin=True).first():
                 admin_username = os.environ.get('ADMIN_USER', 'admin')
                 admin_password = os.environ.get('ADMIN_PASS', 'admin123')
-                hashed_pw = bcrypt.generate_password_hash(admin_password).decode('utf-8')
                 admin = User(
                     username=admin_username, 
                     email='admin@vrs.com', 
-                    password=hashed_pw, 
+                    password=admin_password, 
                     name='VRS Admin', 
                     phone='0000000000', 
                     is_active=True, 
-                    is_admin=True
+                    is_admin=True,
+                    status='active'
                 )
                 db.session.add(admin)
             db.session.commit()
@@ -294,8 +293,8 @@ def login():
         user = User.query.filter((User.username == login_id) | (User.email == login_id) | (User.phone == login_id)).first()
         
         if user:
-            # Check for plain text match OR legacy bcrypt hash match
-            is_valid = (user.password == password) or (user.password.startswith('$2b$') and bcrypt.check_password_hash(user.password, password))
+            # Check for plain text match
+            is_valid = (user.password == password)
             
             if is_valid:
                 if not user.is_active:
@@ -558,7 +557,13 @@ def update_user():
         # Status management: pending -> active/frozen
         is_active_toggle = bool(data.get('is_active'))
         if user.status != 'pending':
-            user.status = 'active' if is_active_toggle else 'frozen'
+            new_status = 'active' if is_active_toggle else 'frozen'
+            
+            # RULE: When frozen, all allotted seats are freed and membership canceled
+            if new_status == 'frozen' and user.status == 'active':
+                Booking.query.filter_by(user_id=user.id).delete()
+            
+            user.status = new_status
         
         user.is_active = is_active_toggle # Keep legacy boolean for compatibility
         

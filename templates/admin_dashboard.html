@@ -216,7 +216,7 @@
                                         <button onclick="openMessageModal('{{ user.phone }}', '{{ user.name }}')" class="action-btn secondary">
                                             <i class="fab fa-whatsapp"></i>
                                         </button>
-                                        {% if not user.is_active %}
+                                        {% if user.status == 'pending' %}
                                         <a href="{{ url_for('approve_user', user_id=user.id) }}" class="action-btn approve small">
                                             Approve
                                         </a>
@@ -340,7 +340,7 @@
                     </div>
                     
                     <div class="form-group">
-                        <label>Password (Shown as Hash - Change to Update)</label>
+                        <label>Password</label>
                         <input type="text" id="edit-password" class="glass-input" title="Type a new password to change it">
                     </div>
                     
