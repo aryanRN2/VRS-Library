@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+library.db
+scratch/
+pictures/
+.git/
+.gemini/
