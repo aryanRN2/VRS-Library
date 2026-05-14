@@ -245,14 +245,73 @@ def get_finance_stats():
             'total': m_total
         })
     
-    # Reverse history to show chronological order
-    history.reverse()
+    # Fetch recent approved bookings for the receipt list
+    recent_approved = Booking.query.filter_by(status='approved').order_by(Booking.id.desc()).limit(20).all()
+    approved_list = []
+    for b in recent_approved:
+        approved_list.append({
+            'id': b.id,
+            'user_name': b.user.name,
+            'phone': b.user.phone,
+            'amount': b.amount,
+            'seat_id': b.seat_id,
+            'shift': b.shift,
+            'start_date': b.start_date.strftime('%d %b %Y') if b.start_date else 'N/A',
+            'expiry_date': b.expires_at.strftime('%d %b %Y') if b.expires_at else 'N/A'
+        })
     
     return jsonify({
         'current_month': current_month_total,
         'prev_month': prev_month_total,
-        'history': history
+        'history': history,
+        'recent_approved': approved_list
     })
+
+@app.route('/api/admin/send_receipt_whatsapp', methods=['POST'])
+@login_required
+def send_receipt_whatsapp():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    data = request.get_json()
+    booking_id = data.get('booking_id')
+    booking = Booking.query.get(booking_id)
+    if not booking: return jsonify({'success': False, 'message': 'Booking not found'}), 404
+    
+    # Format a professional receipt message
+    message = f"🌟 *VRS DIGITAL LIBRARY - PAYMENT RECEIPT* 🌟\n\n" \
+              f"Dear *{booking.user.name}*,\n" \
+              f"Your membership allotment is successfully confirmed.\n\n" \
+              f"📍 *Seat Number:* {booking.seat_id}\n" \
+              f"🕒 *Shift:* {booking.shift.capitalize()}\n" \
+              f"📅 *Validity:* {booking.start_date.strftime('%d %b %Y') if booking.start_date else 'Immediate'} to {booking.expires_at.strftime('%d %b %Y') if booking.expires_at else 'Permanent'}\n" \
+              f"💰 *Amount Paid:* ₹{booking.amount or 0}\n\n" \
+              f"Thank you for choosing VRS Digital Library. You can download your detailed PDF receipt from your dashboard anytime."
+
+    # Process phone number
+    phone = "".join(filter(str.isdigit, booking.user.phone))
+    if len(phone) == 10: phone = "91" + phone
+    
+    token = os.environ.get('WHATSAPP_TOKEN')
+    phone_id = os.environ.get('WHATSAPP_PHONE_ID')
+    if not token or not phone_id:
+        return jsonify({'success': False, 'message': 'WhatsApp credentials not configured.'}), 500
+
+    url = f"https://graph.facebook.com/v17.0/{phone_id}/messages"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": phone,
+        "type": "text",
+        "text": {"body": message}
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'message': response.json().get('error', {}).get('message', 'WhatsApp Error')}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/admin/send_whatsapp', methods=['POST'])
 @login_required

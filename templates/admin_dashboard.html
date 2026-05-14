@@ -317,6 +317,29 @@
                     </div>
                 </div>
             </div>
+
+            <div class="registration-table-container glass-card mt-4">
+                <div class="section-header" style="padding: 1.5rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 0;">
+                    <h3 style="font-size: 1.2rem; margin: 0;"><i class="fas fa-file-invoice-dollar"></i> Recent Allotments & Receipts</h3>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 4px 0 0 0;">Manage and send digital receipts for recent memberships.</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="reg-table" id="receipts-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 220px;">Member</th>
+                                <th style="width: 150px;">Seat Details</th>
+                                <th style="width: 200px;">Validity Period</th>
+                                <th style="width: 120px;">Amount</th>
+                                <th style="width: 180px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="receipts-list">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- Activity Logs Section -->
@@ -857,8 +880,78 @@ async function loadFinanceData() {
             }
         }
         
+        const receiptsList = document.getElementById('receipts-list');
+        receiptsList.innerHTML = '';
+        if (data.recent_approved && data.recent_approved.length > 0) {
+            data.recent_approved.forEach(item => {
+                receiptsList.innerHTML += `
+                    <tr>
+                        <td class="user-cell">
+                            <div class="avatar-mini">${item.user_name[0].toUpperCase()}</div>
+                            <div class="user-name-stack">
+                                <span class="u-name-small">${item.user_name}</span>
+                                <span class="u-username-small">@${item.phone}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="booking-badge small" style="padding: 4px 8px; font-size: 0.75rem;">
+                                <i class="fas fa-couch"></i> <b>${item.seat_id}</b>
+                                <span class="shift-mini">${item.shift}</span>
+                            </div>
+                        </td>
+                        <td style="font-size: 0.8rem; font-weight: 500;">
+                            ${item.start_date} - ${item.expiry_date}
+                        </td>
+                        <td style="font-weight: 700; color: #22c55e;">₹${item.amount}</td>
+                        <td>
+                            <button onclick="sendReceiptWhatsApp(${item.id})" class="action-btn secondary small" style="padding: 6px 12px;">
+                                <i class="fab fa-whatsapp"></i> Send Receipt
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } else {
+            receiptsList.innerHTML = '<tr><td colspan="5" class="empty-msg">No recent allotments found.</td></tr>';
+        }
+        
         renderFinanceChart(data.history);
     } catch (e) { console.error('Finance load error', e); }
+}
+
+async function sendReceiptWhatsApp(bookingId) {
+    const btn = event.currentTarget;
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+    
+    try {
+        const res = await fetch('/api/admin/send_receipt_whatsapp', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ booking_id: bookingId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            btn.style.background = '#22c55e';
+            btn.style.color = '#fff';
+            btn.innerHTML = '<i class="fas fa-check"></i> Sent';
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.style.background = '';
+                btn.style.color = '';
+                btn.innerHTML = originalHtml;
+            }, 3000);
+        } else {
+            alert('WhatsApp Error: ' + data.message);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    } catch (e) {
+        alert('Connection error');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
 }
 
 function renderFinanceChart(history) {
