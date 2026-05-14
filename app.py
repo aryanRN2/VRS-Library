@@ -299,7 +299,7 @@ def export_finance():
         print(f"Export error: {e}")
         return jsonify({'success': False, 'message': 'Internal error during export'}), 500
 
-@app.route('/api/admin/activity_logs')
+@app.route('/api/admin/finance')
 @login_required
 def get_finance_stats():
     if not current_user.is_admin: return jsonify({'success': False}), 403
@@ -311,8 +311,6 @@ def get_finance_stats():
     start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
     # Current month revenue (IST comparison)
-    # We strip timezone for DB comparison if needed, or handle it properly
-    # Assuming created_at is stored in IST as per model default
     current_month_total = db.session.query(func.sum(Booking.amount)).filter(
         Booking.created_at >= start_of_month.replace(tzinfo=None)
     ).scalar() or 0
@@ -328,7 +326,7 @@ def get_finance_stats():
     
     # Data for the chart (last 6 months)
     history = []
-    for i in range(6):
+    for i in range(5, -1, -1):
         m_start = (start_of_month - timedelta(days=i*30)).replace(day=1)
         m_end = (m_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
         
@@ -338,24 +336,28 @@ def get_finance_stats():
         ).scalar() or 0
         
         history.append({
-            'month': m_start.strftime('%B %Y'),
+            'month': m_start.strftime('%b %Y'),
             'total': m_total
         })
     
-    # Fetch all confirmed bookings for the receipt list
-    recent_approved = Booking.query.filter(Booking.status != 'pending').order_by(Booking.id.desc()).all()
+    # Fetch all active users for the receipt list (to allow sending receipts to all current members)
+    # We join with Booking to get their latest approved seat info
+    active_users = User.query.filter_by(status='active').all()
     approved_list = []
-    for b in recent_approved:
-        approved_list.append({
-            'id': b.id,
-            'user_name': b.user.name,
-            'phone': b.user.phone,
-            'amount': b.amount,
-            'seat_id': b.seat_id,
-            'shift': b.shift,
-            'start_date': b.start_date.strftime('%d %b %Y') if b.start_date else 'N/A',
-            'expiry_date': b.expires_at.strftime('%d %b %Y') if b.expires_at else 'N/A'
-        })
+    for u in active_users:
+        # Get latest approved booking for this user
+        b = Booking.query.filter_by(user_id=u.id, status='approved').order_by(Booking.id.desc()).first()
+        if b:
+            approved_list.append({
+                'id': b.id,
+                'user_name': u.name,
+                'phone': u.phone,
+                'amount': b.amount,
+                'seat_id': b.seat_id,
+                'shift': b.shift,
+                'start_date': b.start_date.strftime('%d %b %Y') if b.start_date else 'N/A',
+                'expiry_date': b.expires_at.strftime('%d %b %Y') if b.expires_at else 'N/A'
+            })
     
     return jsonify({
         'current_month': current_month_total,
