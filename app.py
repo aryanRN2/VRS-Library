@@ -3,7 +3,9 @@ import requests
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import pytz
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file
+import pandas as pd
+import io
 
 load_dotenv()
 from flask_sqlalchemy import SQLAlchemy
@@ -64,6 +66,9 @@ class User(db.Model, UserMixin):
     # Relationship with Bookings (Cascade Delete ensures bookings are removed if user is deleted)
     bookings = db.relationship('Booking', backref='user', cascade='all, delete-orphan')
 
+    def __init__(self, **kwargs):
+        super(User, self).__init__(**kwargs)
+
 class Seat(db.Model):
     id = db.Column(db.String(10), primary_key=True)
 
@@ -78,6 +83,9 @@ class Booking(db.Model):
     expires_at = db.Column(db.DateTime)
     start_date = db.Column(db.DateTime, default=lambda: datetime.now(IST))
     amount = db.Column(db.Integer, default=0)
+
+    def __init__(self, **kwargs):
+        super(Booking, self).__init__(**kwargs)
 
 class WaitingRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -202,7 +210,96 @@ def admin_dashboard():
                            active_users=active_users_data,
                            logs=recent_logs)
 
-@app.route('/api/admin/finance')
+@app.route('/api/admin/export_finance', methods=['GET'])
+@login_required
+def export_finance():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    
+    month_str = request.args.get('month') # Format YYYY-MM or 'all'
+    
+    try:
+        if month_str and month_str != 'all':
+            year, month = map(int, month_str.split('-'))
+            start_of_month = datetime(year, month, 1)
+            if month == 12:
+                end_of_month = datetime(year + 1, 1, 1)
+            else:
+                end_of_month = datetime(year, month + 1, 1)
+            
+            from sqlalchemy import and_
+            # Use a join or similar to get both user and booking info for that month
+            bookings = Booking.query.filter(
+                and_(Booking.start_date >= start_of_month, Booking.start_date < end_of_month)
+            ).all()
+            export_title = f"Finance_{month_str}"
+            
+            data = []
+            for b in bookings:
+                data.append({
+                    'Name': b.user.name,
+                    'Username': b.user.username,
+                    'Phone': b.user.phone,
+                    'Email': b.user.email or 'N/A',
+                    'Father\'s Name': b.user.fathers_name or 'N/A',
+                    'Address': b.user.address or 'N/A',
+                    'Purpose': b.user.purpose or 'N/A',
+                    'Seat ID': b.seat_id,
+                    'Shift': b.shift.capitalize(),
+                    'Fees Paid': b.amount or 0,
+                    'Start Date': b.start_date.strftime('%d %b %Y') if b.start_date else 'N/A',
+                    'Expiry Date': b.expires_at.strftime('%d %b %Y') if b.expires_at else 'N/A',
+                    'Status': b.status.capitalize(),
+                    'Note 1': b.user.admin_note_1 or '',
+                    'Note 2': b.user.admin_note_2 or ''
+                })
+        else:
+            # Universal Export: Every non-admin user in the system
+            users = User.query.filter_by(is_admin=False).all()
+            export_title = "Universal_Member_Directory"
+            
+            data = []
+            for u in users:
+                # Get their latest booking record if it exists
+                b = Booking.query.filter_by(user_id=u.id).order_by(Booking.id.desc()).first()
+                data.append({
+                    'Name': u.name,
+                    'Username': u.username,
+                    'Phone': u.phone,
+                    'Email': u.email or 'N/A',
+                    'Father\'s Name': u.fathers_name or 'N/A',
+                    'Address': u.address or 'N/A',
+                    'Purpose': u.purpose or 'N/A',
+                    'Seat ID': b.seat_id if b else 'None',
+                    'Shift': b.shift.capitalize() if b else 'N/A',
+                    'Fees Paid': b.amount if b else 0,
+                    'Start Date': b.start_date.strftime('%d %b %Y') if b and b.start_date else 'N/A',
+                    'Expiry Date': b.expires_at.strftime('%d %b %Y') if b and b.expires_at else 'N/A',
+                    'User Status': u.status.capitalize(),
+                    'Booking Status': b.status.capitalize() if b else 'None',
+                    'Note 1': u.admin_note_1 or '',
+                    'Note 2': u.admin_note_2 or ''
+                })
+        
+        if not data:
+            return jsonify({'success': False, 'message': 'No data found to export.'}), 404
+            
+        df = pd.DataFrame(data)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Member Data')
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f"VRS_{export_title}.xlsx"
+        )
+    except Exception as e:
+        print(f"Export error: {e}")
+        return jsonify({'success': False, 'message': 'Internal error during export'}), 500
+
+@app.route('/api/admin/activity_logs')
 @login_required
 def get_finance_stats():
     if not current_user.is_admin: return jsonify({'success': False}), 403
@@ -245,8 +342,8 @@ def get_finance_stats():
             'total': m_total
         })
     
-    # Fetch recent approved bookings for the receipt list
-    recent_approved = Booking.query.filter_by(status='approved').order_by(Booking.id.desc()).limit(20).all()
+    # Fetch all confirmed bookings for the receipt list
+    recent_approved = Booking.query.filter(Booking.status != 'pending').order_by(Booking.id.desc()).all()
     approved_list = []
     for b in recent_approved:
         approved_list.append({
@@ -895,6 +992,69 @@ def check_seat():
             'owner_shift': existing_conflict.shift
         })
     return jsonify({'available': True})
+
+@app.route('/api/admin/user/add', methods=['POST'])
+@login_required
+def add_user_admin():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    data = request.get_json()
+    
+    username = data.get('username', '').strip()
+    if not username: return jsonify({'success': False, 'message': 'Username is required'}), 400
+    
+    # Check if username or email exists
+    if User.query.filter_by(username=username).first():
+        return jsonify({'success': False, 'message': 'Username already exists'}), 400
+        
+    email = data.get('email', '').strip()
+    if email and User.query.filter_by(email=email).first():
+        return jsonify({'success': False, 'message': 'Email already exists'}), 400
+        
+    new_user = User(
+        username=username,
+        name=data.get('name'),
+        phone=data.get('phone'),
+        email=email or None,
+        password=data.get('password', 'vrs123'),
+        fathers_name=data.get('fathers_name'),
+        address=data.get('address'),
+        purpose=data.get('purpose', 'Library Study'),
+        admin_note_1=data.get('note_1'),
+        admin_note_2=data.get('note_2'),
+        profile_photo=data.get('photo'),
+        status='active',
+        is_active=True
+    )
+    
+    db.session.add(new_user)
+    db.session.commit()
+    
+    # Handle Optional Seat Allotment
+    seat_id = data.get('seat_id')
+    if seat_id:
+        from datetime import datetime
+        try:
+            start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d') if data.get('start_date') else datetime.now()
+            expiry_date = datetime.strptime(data.get('expiry_date'), '%Y-%m-%d') if data.get('expiry_date') else (start_date + timedelta(days=30))
+            
+            booking = Booking(
+                user_id=new_user.id,
+                seat_id=str(seat_id),
+                shift=data.get('shift', 'morning'),
+                amount=int(data.get('amount', 400)),
+                status='approved',
+                start_date=start_date,
+                expires_at=expiry_date
+            )
+            db.session.add(booking)
+            db.session.commit()
+            log_activity("Seat Allotted", f"Admin allotted seat {seat_id} to new user {new_user.name} during creation.", user_id=new_user.id)
+        except Exception as e:
+            print(f"Allotment error during creation: {e}")
+            # User is still created, but allotment failed. Admin can fix in edit.
+    
+    log_activity("Admin Created User", f"Admin created new member {new_user.name} (@{new_user.username}).", user_id=new_user.id)
+    return jsonify({'success': True})
 
 @app.route('/api/admin/user/update', methods=['POST'])
 @login_required

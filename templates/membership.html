@@ -188,7 +188,147 @@
     </div>
 </section>
 
-<!-- Booking Modal -->
+<!-- Edit Member Modal (Admin Only) -->
+{% if current_user.is_authenticated and current_user.is_admin %}
+<div id="edit-user-modal" class="modal hidden">
+    <div class="modal-content glass-card large-modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-edit"></i> Member Details</h3>
+            <button class="close-btn" onclick="closeEditModal()">&times;</button>
+        </div>
+        
+        <form id="edit-user-form" class="edit-form">
+            <input type="hidden" id="edit-user-id">
+            
+            <div class="edit-grid">
+                <!-- Left: Photo & Status -->
+                <div class="edit-sidebar">
+                    <div class="edit-avatar-container">
+                        <div id="edit-avatar-preview" class="avatar-large"></div>
+                        <input type="file" id="edit-photo-input" accept="image/*" capture="user" class="hidden">
+                        <button type="button" class="glass-btn small" onclick="document.getElementById('edit-photo-input').click()" style="width: 100%;">
+                            Change Photo
+                        </button>
+                    </div>
+                    
+                    <div class="status-toggle-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="edit-is-active">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">Active Member</span>
+                        </label>
+                    </div>
+                    
+                    <div class="danger-zone">
+                        <button type="button" class="delete-btn" onclick="deleteUser()">
+                            <i class="fas fa-trash-alt"></i> Delete User
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Right: Details & Notes -->
+                <div class="edit-details">
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <div class="input-with-cut">
+                                <input type="text" id="edit-name" class="glass-input" required>
+                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-name').value=''">&times;</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <div class="input-with-cut">
+                                <input type="text" id="edit-phone" class="glass-input" required>
+                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-phone').value=''">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" id="edit-username" class="glass-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email (Optional)</label>
+                            <div class="input-with-cut">
+                                <input type="email" id="edit-email" class="glass-input">
+                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-email').value=''">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Father's Name</label>
+                            <input type="text" id="edit-fathers-name" class="glass-input" placeholder="Father's Name">
+                        </div>
+                        <div class="form-group">
+                            <label>Full Address</label>
+                            <input type="text" id="edit-address" class="glass-input" placeholder="Address">
+                        </div>
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Membership Start</label>
+                            <input type="datetime-local" id="edit-start-date" class="glass-input">
+                        </div>
+                        <div class="form-group">
+                            <label>Membership Expiry</label>
+                            <input type="datetime-local" id="edit-expires-at" class="glass-input">
+                        </div>
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Assigned Shift</label>
+                            <select id="edit-shift" class="glass-input">
+                                <option value="morning">Morning Shift</option>
+                                <option value="evening">Evening Shift</option>
+                                <option value="full">Full Day</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Membership Amount (₹)</label>
+                            <input type="number" id="edit-amount" class="glass-input" placeholder="e.g. 400">
+                        </div>
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Assigned Seat (1-65)</label>
+                            <div style="position: relative;" class="input-with-cut">
+                                <input type="number" id="edit-seat-id" class="glass-input" min="1" max="65" placeholder="e.g. 15">
+                                <button type="button" class="check-avail-btn" onclick="triggerCheck()">Check</button>
+                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-seat-id').value=''; document.getElementById('edit-seat-hint').innerHTML=''">&times;</button>
+                                <span id="edit-seat-hint" style="position: absolute; right: 80px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; font-weight: 700;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label><i class="fas fa-comment-dots"></i> Admin Note 1</label>
+                        <textarea id="edit-note-1" class="glass-input" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-comment-dots"></i> Admin Note 2</label>
+                        <textarea id="edit-note-2" class="glass-input" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="glass-btn secondary" onclick="closeEditModal()" style="background: #f1f5f9; color: #64748b;">Cancel</button>
+                <button type="submit" class="premium-btn" id="save-user-btn" style="width: auto; padding: 0.8rem 2rem;">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 <div id="booking-modal" class="modal hidden">
     <div class="modal-content glass-card">
         <h3>Request Seat <span id="modal-seat-id"></span></h3>
@@ -264,6 +404,63 @@
 </div>
 
 <style>
+:root {
+    --accent-color: #4285F4;
+    --glass-bg: rgba(255, 255, 255, 0.8);
+    --glass-border: rgba(226, 232, 240, 0.8);
+    --text-color: #1e293b;
+}
+
+/* Edit Modal Styles - Copied from Dashboard */
+.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; backdrop-filter: blur(5px); padding: 20px; }
+.modal.hidden { display: none !important; }
+.large-modal { max-width: 800px; width: 100%; max-height: 90vh; padding: 0; overflow-y: auto; background: #fff; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+.modal-header { padding: 1.5rem 2rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { margin: 0; color: #1e293b; display: flex; align-items: center; gap: 10px; }
+.close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b; }
+.edit-form { padding: 2rem; }
+.edit-grid { display: grid; grid-template-columns: 220px 1fr; gap: 2rem; }
+.avatar-large { width: 150px; height: 150px; border-radius: 50%; background: #f1f5f9; margin: 0 auto 1rem; border: 4px solid #eff6ff; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.avatar-large img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-large i { font-size: 5rem; color: #cbd5e1; }
+.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
+.form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #64748b; margin-bottom: 0.5rem; }
+.glass-input { 
+    width: 100%; 
+    padding: 0.8rem; 
+    border-radius: 10px; 
+    border: 1.5px solid #cbd5e1; 
+    background: #ffffff; 
+    font-family: inherit; 
+    transition: all 0.2s ease;
+    color: #1e293b;
+    font-weight: 500;
+}
+.glass-input:focus {
+    outline: none;
+    border-color: #4285F4;
+    box-shadow: 0 0 0 4px rgba(66, 133, 244, 0.15);
+    background: #fff;
+}
+.glass-input::placeholder {
+    color: #94a3b8;
+    font-weight: 400;
+}
+.status-toggle-group { margin: 2rem 0; padding: 1rem; background: #f8fafc; border-radius: 12px; }
+.toggle-label { display: flex; align-items: center; gap: 12px; cursor: pointer; position: relative; }
+.toggle-slider { width: 44px; height: 24px; background: #cbd5e1; border-radius: 20px; position: relative; transition: 0.3s; }
+.toggle-slider:before { content: ""; width: 18px; height: 18px; background: #fff; border-radius: 50%; position: absolute; left: 3px; top: 3px; transition: 0.3s; }
+input[type="checkbox"]:checked + .toggle-slider { background: #22c55e; }
+input[type="checkbox"]:checked + .toggle-slider:before { left: 23px; }
+.toggle-text { font-weight: 600; color: #1e293b; font-size: 0.9rem; }
+.danger-zone { margin-top: 2rem; border-top: 1px solid #fee2e2; padding-top: 1.5rem; }
+.delete-btn { width: 100%; padding: 0.8rem; background: #fff; color: #ef4444; border: 1px solid #ef4444; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.modal-footer { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; }
+.input-with-cut { position: relative; display: flex; align-items: center; }
+.cut-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: #f1f5f9; border: none; width: 24px; height: 24px; border-radius: 50%; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 5; }
+.check-avail-btn { position: absolute; right: 38px; top: 50%; transform: translateY(-50%); background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; cursor: pointer; z-index: 6; }
+@media (max-width: 768px) { .edit-grid, .input-row { grid-template-columns: 1fr; } }
+
 .membership-section { padding-top: 80px; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding-bottom: 5rem; }
 .membership-container { max-width: 1200px; width: 98%; padding: 1.5rem; margin-top: 2rem; }
 .header-flex { display: flex; justify-content: space-between; align-items: center; }
@@ -321,15 +518,12 @@
 
 .admin-footer-nav { margin-top: 3rem; display: flex; justify-content: center; border-top: 1px solid var(--glass-border); padding-top: 2rem; }
 
-.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-.modal.hidden { display: none !important; }
 .wide-modal { width: 480px !important; }
 .requests-container { max-height: 300px; overflow-y: auto; margin: 1rem 0; text-align: left; }
 .request-card { background: white; border: 1px solid var(--glass-border); padding: 0.8rem; border-radius: 0.5rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
 .request-info p { margin: 0; font-size: 0.8rem; }
-.glass-input { width: 100%; padding: 0.8rem; margin: 0.5rem 0; border-radius: 0.5rem; border: 1px solid var(--glass-border); background: white; }
-.modal-btns { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: center; }
 .hidden { display: none !important; }
+.modal-btns { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: center; }
 .preset-btns { display: flex; gap: 0.5rem; justify-content: center; margin: 0.5rem 0; }
 .preset-btn { background: #f0f0f0; border: 1px solid #ddd; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.75rem; }
 .preset-btn.active { background: var(--accent-color); color: white; }
@@ -362,7 +556,7 @@
 .user-avatar-nav:hover { transform: scale(1.1); box-shadow: 0 0 10px rgba(66, 133, 244, 0.4); }
 .user-avatar-nav img { width: 100%; height: 100%; object-fit: cover; }
 
-.photo-mgmt-section { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; display: flex; justify-content: center; align-items: center; backdrop-blur: 5px; }
+.photo-mgmt-section { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
 .inner-card { max-width: 400px; width: 90%; text-align: center; padding: 2rem; }
 .photo-preview-large { width: 150px; height: 150px; border-radius: 50%; margin: 1.5rem auto; border: 4px solid var(--accent-color); overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f0f0f0; }
 .photo-preview-large img { width: 100%; height: 100%; object-fit: cover; }
@@ -465,8 +659,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!isAuthenticated) return window.location.href = "{{ url_for('login') }}";
                     if (!isAdmin && (!seat.status || seat.status === 'available' || seat.status === 'pending')) {
                         openBooking(seat.id);
-                    } else if (isAdmin && seat.pending_requests && seat.pending_requests.length > 0) {
-                        openMultiReview(seat.pending_requests, seat.id);
+                    } else if (isAdmin) {
+                        if (seat.pending_requests && seat.pending_requests.length > 0) {
+                            openMultiReview(seat.pending_requests, seat.id);
+                        } else if (seat.approved_user) {
+                            openEditModal(seat.approved_user.user_id);
+                        }
                     }
                 };
                 col.appendChild(el);
@@ -616,7 +814,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.querySelectorAll('.close-btn').forEach(btn => btn.onclick = () => {
-        bookingModal.classList.add('hidden'); approvalModal.classList.add('hidden');
+        bookingModal.classList.add('hidden'); 
+        approvalModal.classList.add('hidden');
+        const editModal = document.getElementById('edit-user-modal');
+        if (editModal) editModal.classList.add('hidden');
     });
 
     shiftBtns.forEach(btn => btn.onclick = () => {
@@ -726,6 +927,161 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // Admin Edit Logic
+    window.openEditModal = (userId) => {
+        const modal = document.getElementById('edit-user-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        
+        fetch(`/api/admin/user/${userId}`)
+            .then(res => res.json())
+            .then(user => {
+                document.getElementById('edit-user-id').value = user.id;
+                document.getElementById('edit-name').value = user.name;
+                document.getElementById('edit-phone').value = user.phone;
+                document.getElementById('edit-username').value = user.username;
+                document.getElementById('edit-email').value = user.email || '';
+                document.getElementById('edit-is-active').checked = user.is_active;
+                document.getElementById('edit-start-date').value = user.start_date || '';
+                document.getElementById('edit-expires-at').value = user.expires_at || '';
+                document.getElementById('edit-shift').value = user.shift || 'morning';
+                document.getElementById('edit-amount').value = user.amount || 0;
+                document.getElementById('edit-note-1').value = user.admin_note_1 || '';
+                document.getElementById('edit-note-2').value = user.admin_note_2 || '';
+                document.getElementById('edit-fathers-name').value = user.fathers_name || '';
+                document.getElementById('edit-address').value = user.address || '';
+                document.getElementById('edit-seat-id').value = user.seat_id || '';
+                
+                const preview = document.getElementById('edit-avatar-preview');
+                preview.innerHTML = user.profile_photo ? `<img src="${user.profile_photo}" style="width:100%; height:100%; object-fit:cover;">` : `<i class="fas fa-user-circle"></i>`;
+            });
+    };
+
+    window.closeEditModal = () => {
+        document.getElementById('edit-user-modal').classList.add('hidden');
+    };
+
+    let editCompressedPhoto = null;
+    const editPhotoInput = document.getElementById('edit-photo-input');
+    if (editPhotoInput) {
+        editPhotoInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX = 400;
+                    let w = img.width, h = img.height;
+                    if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } }
+                    else { if (h > MAX) { w *= MAX/h; h = MAX; } }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    editCompressedPhoto = canvas.toDataURL('image/jpeg', 0.5);
+                    document.getElementById('edit-avatar-preview').innerHTML = `<img src="${editCompressedPhoto}" style="width:100%; height:100%; object-fit:cover;">`;
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+    }
+
+    window.triggerCheck = () => {
+        const seatId = document.getElementById('edit-seat-id').value;
+        const shift = document.getElementById('edit-shift').value;
+        const userId = document.getElementById('edit-user-id').value;
+        checkSeatAvailabilityAdmin(seatId, shift, userId);
+    };
+
+    async function checkSeatAvailabilityAdmin(seatId, shift, userId) {
+        const hint = document.getElementById('edit-seat-hint');
+        try {
+            const res = await fetch('/api/admin/check_seat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ seat_id: seatId, shift: shift, user_id: userId })
+            });
+            const data = await res.json();
+            hint.innerHTML = data.available ? '<span style="color: #16a34a;">FREE</span>' : `<span style="color: #dc2626;">BOOKED</span>`;
+        } catch (e) {}
+    }
+
+    const editForm = document.getElementById('edit-user-form');
+    if (editForm) {
+        editForm.onsubmit = async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('save-user-btn');
+            btn.disabled = true; btn.innerText = 'Saving...';
+            
+            const payload = {
+                user_id: document.getElementById('edit-user-id').value,
+                name: document.getElementById('edit-name').value,
+                phone: document.getElementById('edit-phone').value,
+                username: document.getElementById('edit-username').value,
+                email: document.getElementById('edit-email').value,
+                fathers_name: document.getElementById('edit-fathers-name').value,
+                address: document.getElementById('edit-address').value,
+                is_active: document.getElementById('edit-is-active').checked,
+                start_date: document.getElementById('edit-start-date').value,
+                expires_at: document.getElementById('edit-expires-at').value,
+                shift: document.getElementById('edit-shift').value,
+                seat_id: document.getElementById('edit-seat-id').value,
+                amount: document.getElementById('edit-amount').value,
+                admin_note_1: document.getElementById('edit-note-1').value,
+                admin_note_2: document.getElementById('edit-note-2').value,
+                profile_photo: editCompressedPhoto
+            };
+            
+            try {
+                const res = await fetch('/api/admin/user/update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    closeEditModal();
+                    loadSeats();
+                } else {
+                    const err = await res.json();
+                    alert('Update failed: ' + err.message);
+                }
+            } catch (e) { alert('Connection error'); }
+            finally { btn.disabled = false; btn.innerText = 'Save Changes'; }
+        };
+    }
+
+    // Reactive Listeners for Admin Edit
+    const editSeatInput = document.getElementById('edit-seat-id');
+    const editShiftSelect = document.getElementById('edit-shift');
+    const editAmountInput = document.getElementById('edit-amount');
+
+    if (editSeatInput) editSeatInput.addEventListener('input', triggerCheck);
+    if (editShiftSelect) {
+        editShiftSelect.addEventListener('change', () => {
+            triggerCheck();
+            // Default amount logic: morning/evening=400, full=800
+            if (editShiftSelect.value === 'full') {
+                editAmountInput.value = 800;
+            } else {
+                editAmountInput.value = 400;
+            }
+        });
+    }
+
+    window.deleteUser = async () => {
+        if (!confirm('Are you sure you want to delete this user forever?')) return;
+        const userId = document.getElementById('edit-user-id').value;
+        try {
+            const res = await fetch('/api/admin/user/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: userId })
+            });
+            if (res.ok) { closeEditModal(); loadSeats(); }
+        } catch (e) {}
+    };
+
     window.uploadDashboardPhoto = async () => {
         if (!compressedData) return;
         saveBtn.disabled = true;
@@ -736,7 +1092,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    user_id: {{ current_user.id }},
+                    user_id: {{ current_user.id if current_user.is_authenticated else 'null' }},
                     photo: compressedData
                 })
             });

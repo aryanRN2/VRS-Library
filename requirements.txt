@@ -6,5 +6,7 @@ flask-bcrypt
 psycopg2-binary
 requests
 python-dotenv
-gunicorn
+pandas
+openpyxl
 reportlab
+gunicorn

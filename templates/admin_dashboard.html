@@ -90,8 +90,8 @@
                     <table class="reg-table">
                         <thead>
                             <tr>
-                                <th>User Profile</th>
-                                <th>Contact & Goal</th>
+                                <th style="width: 250px;">User Profile</th>
+                                <th style="width: 350px;">Contact, Parent & Address</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -109,7 +109,9 @@
                                     <td>
                                         <div class="contact-info">
                                             <span><i class="fas fa-phone"></i> {{ user.phone }}</span>
-                                            <span class="purpose-badge small">{{ user.purpose }}</span>
+                                            <span style="font-size: 0.8rem; color: #64748b; margin-top: 4px;"><i class="fas fa-user-friends"></i> F: {{ user.fathers_name or 'N/A' }}</span>
+                                            <span style="font-size: 0.8rem; color: #64748b; display: block; line-height: 1.3;"><i class="fas fa-map-marker-alt"></i> {{ user.address or 'N/A' }}</span>
+                                            <span class="purpose-badge small" style="margin-top: 6px;">{{ user.purpose }}</span>
                                         </div>
                                     </td>
                                     <td>
@@ -136,9 +138,19 @@
         </div>
         <!-- All Members Section -->
         <div id="users" class="dash-section mt-4 hidden">
-            <div class="section-header">
-                <h2>Member Directory</h2>
-                <p>Manage all registered users and their current seat status.</p>
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2>Member Directory</h2>
+                    <p>Manage all registered users and their current seat status.</p>
+                </div>
+                <div class="action-flex" style="display: flex; gap: 10px;">
+                    <button class="glass-btn small" onclick="exportAllMembers()" style="background: #f8fafc; color: #1e293b; border: 1px solid #e2e8f0; padding: 0.8rem 1.2rem;">
+                        <i class="fas fa-file-download"></i> Export All Data
+                    </button>
+                    <button class="premium-btn" onclick="openAddUserModal()" style="padding: 0.8rem 1.5rem;">
+                        <i class="fas fa-user-plus"></i> Add New Member
+                    </button>
+                </div>
             </div>
             
             <div class="filter-bar">
@@ -154,7 +166,7 @@
                         <thead>
                             <tr>
                                 <th style="width: 250px;">Member Profile</th>
-                                <th style="width: 280px;">Contact & Details</th>
+                                <th style="width: 320px;">Contact & Personal</th>
                                 <th style="width: 250px;">Expiry & Notes</th>
                                 <th style="width: 120px;">Status</th>
                                 <th style="width: 150px;">Booking</th>
@@ -182,7 +194,9 @@
                                     <div class="detail-stack">
                                         <span id="row-phone-container-{{ user.id }}"><i class="fas fa-phone"></i> <span id="row-phone-{{ user.id }}">{{ user.phone }}</span></span>
                                         <span class="u-email-small" id="row-email-{{ user.id }}">{{ user.email or 'No Email' }}</span>
-                                        <span class="purpose-badge small">{{ user.purpose }}</span>
+                                        <span style="font-size: 0.8rem; color: #64748b; margin-top: 4px;"><i class="fas fa-user-friends"></i> F: {{ user.fathers_name or 'N/A' }}</span>
+                                        <span style="font-size: 0.8rem; color: #64748b; line-height: 1.2; display: block;"><i class="fas fa-map-marker-alt"></i> {{ user.address or 'N/A' }}</span>
+                                        <span class="purpose-badge small" style="margin-top: 4px;">{{ user.purpose }}</span>
                                     </div>
                                 </td>
                                 <td>
@@ -319,9 +333,17 @@
             </div>
 
             <div class="registration-table-container glass-card mt-4">
-                <div class="section-header" style="padding: 1.5rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 0;">
-                    <h3 style="font-size: 1.2rem; margin: 0;"><i class="fas fa-file-invoice-dollar"></i> Recent Allotments & Receipts</h3>
-                    <p style="font-size: 0.8rem; color: #64748b; margin: 4px 0 0 0;">Manage and send digital receipts for recent memberships.</p>
+                <div class="section-header" style="padding: 1.5rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 0; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h3 style="font-size: 1.2rem; margin: 0;"><i class="fas fa-file-invoice-dollar"></i> Recent Allotments & Receipts</h3>
+                        <p style="font-size: 0.8rem; color: #64748b; margin: 4px 0 0 0;">Manage and send digital receipts for recent memberships.</p>
+                    </div>
+                    <div class="export-controls" style="display: flex; gap: 10px; align-items: center;">
+                        <input type="month" id="export-month" class="glass-input" style="padding: 6px 12px; font-size: 0.85rem; width: 160px; height: 38px;">
+                        <button onclick="exportFinanceData()" class="receipt-btn" style="padding: 0 16px; height: 38px; background: #2563eb; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);">
+                            <i class="fas fa-file-excel"></i> Export to Excel
+                        </button>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="reg-table" id="receipts-table">
@@ -542,6 +564,138 @@
     </div>
 </div>
 
+<!-- Add New Member Modal -->
+<div id="add-user-modal" class="modal hidden">
+    <div class="modal-content glass-card large-modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-plus"></i> Create New Member</h3>
+            <button class="close-btn" onclick="closeAddUserModal()">&times;</button>
+        </div>
+        
+        <form id="add-user-form" class="edit-form">
+            <div class="edit-grid">
+                <!-- Left: Photo Sidebar -->
+                <div class="edit-sidebar">
+                    <div class="edit-avatar-container">
+                        <div id="add-avatar-preview" class="avatar-large" style="width: 150px; height: 150px; border-radius: 20px; background: #f1f5f9; color: #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; overflow: hidden; border: 2px dashed #cbd5e1;">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <input type="file" id="add-photo-input" accept="image/*" capture="user" class="hidden">
+                        <button type="button" class="glass-btn small" onclick="document.getElementById('add-photo-input').click()" style="margin-top: 1rem; width: 100%;">
+                            <i class="fas fa-camera"></i> Take/Upload Photo
+                        </button>
+                        <p id="add-photo-status" style="font-size: 0.7rem; color: #64748b; margin-top: 5px; text-align: center;"></p>
+                    </div>
+                </div>
+
+                <!-- Right: Main Details -->
+                <div class="edit-main">
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" id="add-name" class="glass-input" required placeholder="e.g. John Doe">
+                        </div>
+                        <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" id="add-username" class="glass-input" required placeholder="e.g. johndoe123">
+                        </div>
+                    </div>
+                    
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input type="text" id="add-phone" class="glass-input" required placeholder="e.g. 9876543210">
+                        </div>
+                        <div class="form-group">
+                            <label>Email Address</label>
+                            <input type="email" id="add-email" class="glass-input" placeholder="e.g. john@example.com">
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <div class="form-group">
+                            <label>Initial Password</label>
+                            <input type="text" id="add-password" class="glass-input" required value="vrs123">
+                        </div>
+                        <div class="form-group">
+                            <label>Goal/Purpose</label>
+                            <input type="text" id="add-purpose" class="glass-input" placeholder="e.g. SSC Preparation">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Father's Name</label>
+                        <input type="text" id="add-fathers-name" class="glass-input" placeholder="Enter Father's Name">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Full Address</label>
+                        <textarea id="add-address" class="glass-input" rows="2" placeholder="Enter Permanent Address"></textarea>
+                    </div>
+
+                    <!-- Allotment Section -->
+                    <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                        <h4 style="margin-bottom: 1rem; color: #1e293b;"><i class="fas fa-couch"></i> Initial Allotment (Optional)</h4>
+                        <div class="input-row">
+                            <div class="form-group">
+                                <label>Shift</label>
+                                <select id="add-shift" class="glass-input" onchange="updateAddAmount()">
+                                    <option value="morning">Morning (₹400)</option>
+                                    <option value="evening">Evening (₹400)</option>
+                                    <option value="full">Full Day (₹800)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Amount (₹)</label>
+                                <input type="number" id="add-amount" class="glass-input" value="400">
+                            </div>
+                        </div>
+                        <div class="input-row">
+                            <div class="form-group">
+                                <label>Seat Number</label>
+                                <div style="position: relative;" class="input-with-cut">
+                                    <input type="number" id="add-seat-id" class="glass-input" min="1" max="65" placeholder="e.g. 21">
+                                    <button type="button" class="check-avail-btn" onclick="triggerCheckAdd()">Check</button>
+                                    <span id="add-seat-availability-hint" style="position: absolute; right: 80px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; font-weight: 700;"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Start Date</label>
+                                <input type="date" id="add-start-date" class="glass-input">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Expiry Date</label>
+                            <input type="date" id="add-expiry-date" class="glass-input">
+                        </div>
+                    </div>
+
+                    <!-- Admin Comment Boxes -->
+                    <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+                        <div class="form-group">
+                            <label><i class="fas fa-comment-dots"></i> Admin Comment Box 1 (Private)</label>
+                            <textarea id="add-note-1" class="glass-input" rows="2" placeholder="Notes about payment, behavior, etc."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-comment-dots"></i> Admin Comment Box 2 (Private)</label>
+                            <textarea id="add-note-2" class="glass-input" rows="2" placeholder="Additional internal records..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="glass-btn secondary" onclick="closeAddUserModal()" style="background: #f1f5f9; color: #64748b;">
+                    Cancel
+                </button>
+                <button type="submit" class="premium-btn">
+                    <i class="fas fa-check-circle"></i> Create Member
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <style>
 .admin-dashboard { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; background: #f8fafc; }
 
@@ -723,6 +877,29 @@ input[type="checkbox"]:checked + .toggle-slider:before { left: 23px; }
 .u-name-system { color: #94a3b8; font-style: italic; font-size: 0.85rem; }
 .avatar-mini { width: 24px; height: 24px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
 .u-name-small { font-size: 0.8rem; font-weight: 600; color: #1e293b; }
+.receipt-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #22c55e;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none !important;
+    transition: 0.3s;
+    border: none;
+    box-shadow: 0 4px 6px rgba(34, 197, 94, 0.2);
+    cursor: pointer;
+}
+.receipt-btn:hover {
+    background: #16a34a;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px rgba(34, 197, 94, 0.3);
+    color: white;
+}
+.receipt-btn i { font-size: 1rem; }
 
 .badge-new-registration { background: #eff6ff; color: #2563eb; }
 .badge-user-approved { background: #dcfce7; color: #166534; }
@@ -904,9 +1081,9 @@ async function loadFinanceData() {
                         </td>
                         <td style="font-weight: 700; color: #22c55e;">₹${item.amount}</td>
                         <td>
-                            <button onclick="sendReceiptWhatsApp(${item.id})" class="action-btn secondary small" style="padding: 6px 12px;">
+                            <a href="https://wa.me/91${item.phone}?text=${encodeURIComponent(`*VRS Digital Library - Payment Receipt*\n\nHello *${item.user_name}*,\n\nYour membership has been approved! Details:\n- Seat: *${item.seat_id}*\n- Shift: *${item.shift}*\n- Validity: ${item.start_date} to ${item.expiry_date}\n- Amount Paid: *₹${item.amount}*\n\nYou can download your PDF receipt from your dashboard.\n\nThank you!`)}" target="_blank" class="receipt-btn">
                                 <i class="fab fa-whatsapp"></i> Send Receipt
-                            </button>
+                            </a>
                         </td>
                     </tr>
                 `;
@@ -916,7 +1093,33 @@ async function loadFinanceData() {
         }
         
         renderFinanceChart(data.history);
+        
+        // Set default export month if not set
+        const exportInput = document.getElementById('export-month');
+        if (!exportInput.value) {
+            const now = new Date();
+            const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            exportInput.value = monthStr;
+        }
     } catch (e) { console.error('Finance load error', e); }
+    // Deep Link Check: Open edit modal if user_id is in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const editUserId = urlParams.get('edit_user_id');
+    if (editUserId) {
+        // Clean URL to prevent re-opening on refresh
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setTimeout(() => openEditModal(editUserId), 500);
+    }
+}
+
+function exportFinanceData() {
+    const month = document.getElementById('export-month').value;
+    if (!month) return alert('Please select a month first.');
+    window.location.href = `/api/admin/export_finance?month=${month}`;
+}
+
+function exportAllMembers() {
+    window.location.href = '/api/admin/export_finance?month=all';
 }
 
 async function sendReceiptWhatsApp(bookingId) {
@@ -953,6 +1156,118 @@ async function sendReceiptWhatsApp(bookingId) {
         btn.innerHTML = originalHtml;
     }
 }
+
+// Add User Modal Functions
+let addCompressedPhoto = null;
+
+function updateAddAmount() {
+    const shift = document.getElementById('add-shift').value;
+    document.getElementById('add-amount').value = (shift === 'full') ? 800 : 400;
+    triggerCheckAdd();
+}
+
+function triggerCheckAdd() {
+    const seatId = document.getElementById('add-seat-id').value;
+    const shift = document.getElementById('add-shift').value;
+    checkSeatAvailability(seatId, shift, null, 'add-seat-availability-hint');
+}
+
+function openAddUserModal() {
+    document.getElementById('add-user-modal').classList.remove('hidden');
+    document.getElementById('add-user-form').reset();
+    document.getElementById('add-password').value = 'vrs123';
+    document.getElementById('add-avatar-preview').innerHTML = '<i class="fas fa-user"></i>';
+    addCompressedPhoto = null;
+    
+    // Set default dates
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('add-start-date').value = today;
+    
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    document.getElementById('add-expiry-date').value = nextMonth.toISOString().split('T')[0];
+}
+
+document.getElementById('add-photo-input').onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const status = document.getElementById('add-photo-status');
+    const preview = document.getElementById('add-avatar-preview');
+    status.innerText = 'Compressing...';
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const MAX = 400;
+            let w = img.width, h = img.height;
+            if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX; } }
+            else { if (h > MAX) { w *= MAX / h; h = MAX; } }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            addCompressedPhoto = canvas.toDataURL('image/jpeg', 0.7);
+            preview.innerHTML = `<img src="${addCompressedPhoto}" style="width:100%; height:100%; object-fit:cover;">`;
+            status.innerText = 'Photo Ready!';
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+document.getElementById('add-seat-id').addEventListener('input', triggerCheckAdd);
+
+function closeAddUserModal() {
+    document.getElementById('add-user-modal').classList.add('hidden');
+}
+
+document.getElementById('add-user-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const saveBtn = e.target.querySelector('button[type="submit"]');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating & Allotting...';
+    
+    const payload = {
+        name: document.getElementById('add-name').value,
+        username: document.getElementById('add-username').value,
+        phone: document.getElementById('add-phone').value,
+        email: document.getElementById('add-email').value,
+        password: document.getElementById('add-password').value,
+        fathers_name: document.getElementById('add-fathers-name').value,
+        address: document.getElementById('add-address').value,
+        purpose: document.getElementById('add-purpose').value,
+        note_1: document.getElementById('add-note-1').value,
+        note_2: document.getElementById('add-note-2').value,
+        photo: addCompressedPhoto,
+        // Allotment
+        seat_id: document.getElementById('add-seat-id').value,
+        shift: document.getElementById('add-shift').value,
+        amount: document.getElementById('add-amount').value,
+        start_date: document.getElementById('add-start-date').value,
+        expiry_date: document.getElementById('add-expiry-date').value
+    };
+    
+    try {
+        const res = await fetch('/api/admin/user/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('User created successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-check-circle"></i> Create Member';
+        }
+    } catch (err) {
+        alert('Server error');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-check-circle"></i> Create Member';
+    }
+};
 
 function renderFinanceChart(history) {
     const ctx = document.getElementById('revenueChart').getContext('2d');
@@ -1234,8 +1549,8 @@ document.getElementById('edit-user-form').onsubmit = async function(e) {
     }
 };
 
-async function checkSeatAvailability(seatId, shift, userId) {
-    const hint = document.getElementById('seat-availability-hint');
+async function checkSeatAvailability(seatId, shift, userId, hintId = 'seat-availability-hint') {
+    const hint = document.getElementById(hintId);
     if (!seatId || seatId < 1 || seatId > 65) {
         hint.innerHTML = '';
         return;
