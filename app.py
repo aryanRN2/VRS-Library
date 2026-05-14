@@ -11,9 +11,12 @@ load_dotenv()
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_, text
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-
-
+from werkzeug.security import generate_password_hash, check_password_hash
+from markupsafe import escape
 app = Flask(__name__)
+
+def safe_str(val):
+    return str(escape(str(val))) if val else val
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'vrs-secret-key-development-only')
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -46,7 +49,7 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=True)
-    password = db.Column(db.String(60), nullable=False)
+    password = db.Column(db.String(255), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     phone = db.Column(db.String(20), nullable=False)
     purpose = db.Column(db.String(100))
@@ -74,8 +77,8 @@ class Seat(db.Model):
 
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    seat_id = db.Column(db.String(10), db.ForeignKey('seat.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    seat_id = db.Column(db.String(10), db.ForeignKey('seat.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     shift = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(20), default='pending') 
     requested_plan = db.Column(db.String(20), default='1 Month')
@@ -95,7 +98,7 @@ class WaitingRoom(db.Model):
 class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(IST))
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
     action = db.Column(db.String(100), nullable=False)
     details = db.Column(db.Text, nullable=True)
     
@@ -122,6 +125,13 @@ with app.app_context():
         # Just create tables if they don't exist
         db.create_all()
         
+        # Attempt to expand password column for existing Postgres databases
+        try:
+            db.session.execute(text('ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(255)'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        
         # Check seats once - use a simpler check
         if Seat.query.limit(1).count() == 0:
             print("Initializing first-time seats...")
@@ -131,9 +141,10 @@ with app.app_context():
             if not User.query.filter_by(is_admin=True).first():
                 admin_username = os.environ.get('ADMIN_USER', 'admin')
                 admin_password = os.environ.get('ADMIN_PASS', 'admin123')
+                hashed_pw = generate_password_hash(admin_password)
                 db.session.add(User(
                     username=admin_username, email='admin@vrs.com', 
-                    password=admin_password, name='VRS Admin', phone='0000000000', 
+                    password=hashed_pw, name='VRS Admin', phone='0000000000', 
                     is_active=True, is_admin=True, status='active'
                 ))
             db.session.commit()
@@ -350,8 +361,8 @@ def get_finance_stats():
         if b:
             approved_list.append({
                 'id': b.id,
-                'user_name': u.name,
-                'phone': u.phone,
+                'user_name': safe_str(u.name),
+                'phone': safe_str(u.phone),
                 'amount': b.amount,
                 'seat_id': b.seat_id,
                 'shift': b.shift,
@@ -484,8 +495,9 @@ def register():
             return redirect(url_for('register'))
             
         password = request.form.get('password', '').strip()
+        hashed_password = generate_password_hash(password) if password else generate_password_hash('vrs123')
         new_user = User(
-            username=username, email=email, password=password, 
+            username=username, email=email, password=hashed_password, 
             name=request.form.get('name'), phone=request.form.get('phone'), 
             purpose=request.form.get('purpose'), description=request.form.get('description'), 
             is_active=False, status='pending'
@@ -602,8 +614,8 @@ def download_receipt():
     items = [
         ("Seat Assigned", f"Seat Number {booking.seat_id}"),
         ("Shift Selection", f"{booking.shift.capitalize()} Shift"),
-        ("Commencement Date", booking.start_date.strftime('%d %B %Y') if booking.start_date else 'Immediate'),
-        ("Membership Expiry", booking.expires_at.strftime('%d %B %Y') if booking.expires_at else 'Permanent'),
+        ("Commencement Date", booking.start_date.strftime('%d %b %Y') if booking.start_date else 'Immediate'),
+        ("Membership Expiry", booking.expires_at.strftime('%d %b %Y') if booking.expires_at else 'Permanent'),
         ("Total Amount Paid", f"INR {booking.amount or 0}.00")
     ]
     
@@ -662,8 +674,16 @@ def login():
         ).first()
         
         if user:
-            # Check for plain text match
-            is_valid = (user.password == password)
+            # Check for hashed match first
+            is_valid = False
+            if user.password.startswith('scrypt:') or user.password.startswith('pbkdf2:'):
+                is_valid = check_password_hash(user.password, password)
+            else:
+                # Fallback to plain text, and seamless upgrade
+                if user.password == password:
+                    is_valid = True
+                    user.password = generate_password_hash(password)
+                    db.session.commit()
             
             if is_valid:
                 if not user.is_active:
@@ -738,9 +758,9 @@ def get_seats():
         data = {
             'id': b.id, 
             'user_id': b.user_id, 
-            'user': b.user.name, 
-            'phone': b.user.phone, 
-            'purpose': b.user.purpose, 
+            'user': safe_str(b.user.name), 
+            'phone': safe_str(b.user.phone), 
+            'purpose': safe_str(b.user.purpose), 
             'status': b.status,
             'requested_plan': b.requested_plan,
             'expires_at': b.expires_at.strftime('%d %b %Y') if b.expires_at else 'Permanent',
@@ -990,8 +1010,8 @@ def check_seat():
     if existing_conflict:
         return jsonify({
             'available': False, 
-            'owner': existing_conflict.user.name,
-            'owner_shift': existing_conflict.shift
+            'owner': safe_str(existing_conflict.user.name),
+            'owner_shift': safe_str(existing_conflict.shift)
         })
     return jsonify({'available': True})
 
@@ -1017,7 +1037,7 @@ def add_user_admin():
         name=data.get('name'),
         phone=data.get('phone'),
         email=email or None,
-        password=data.get('password', 'vrs123'),
+        password=generate_password_hash(data.get('password', 'vrs123')),
         fathers_name=data.get('fathers_name'),
         address=data.get('address'),
         purpose=data.get('purpose', 'Library Study'),
@@ -1095,7 +1115,7 @@ def update_user():
         
         new_password = data.get('password')
         if new_password:
-            user.password = new_password.strip()
+            user.password = generate_password_hash(new_password.strip())
         
         if data.get('profile_photo'):
             user.profile_photo = data.get('profile_photo')
