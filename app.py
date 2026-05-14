@@ -1140,9 +1140,12 @@ def update_user():
                 booking.seat_id = str(seat_id)
                 booking.shift = shift
                 booking.status = 'approved'
-                if data.get('amount'):
-                    booking.amount = int(data.get('amount'))
-                elif not booking.amount:
+                try:
+                    booking.amount = int(data.get('amount') or 0)
+                except:
+                    booking.amount = 0
+                
+                if not booking.amount:
                     booking.amount = get_default_amount(shift)
                 
             if data.get('expires_at'):
