@@ -9,11 +9,11 @@
                 {% if current_user.is_authenticated %}
                     <span class="user-welcome">Hello, {{ current_user.name }}</span>
                     {% if current_user.profile_photo %}
-                        <div class="user-avatar-nav" onclick="togglePhotoUpload()">
+                        <div class="user-avatar-nav" onclick="toggleProfileModal()">
                             <img src="{{ current_user.profile_photo }}" alt="Profile">
                         </div>
                     {% else %}
-                        <div class="user-avatar-nav placeholder" onclick="togglePhotoUpload()">
+                        <div class="user-avatar-nav placeholder" onclick="toggleProfileModal()">
                             <i class="fas fa-user"></i>
                         </div>
                     {% endif %}
@@ -26,6 +26,70 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Member Profile Summary -->
+        {% if current_user.is_authenticated %}
+        <div class="user-profile-summary" style="margin: 1.5rem 0; padding: 1.5rem; display: flex; gap: 2rem; align-items: center; border-radius: 16px; border: 1.5px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); backdrop-filter: blur(10px);">
+             <div class="summary-avatar" style="width: 130px; height: 130px; border-radius: 24px; overflow: hidden; border: 3px solid #4285F4; flex-shrink: 0; box-shadow: 0 8px 16px rgba(0,0,0,0.1);">
+                {% if current_user.profile_photo %}
+                    <img src="{{ current_user.profile_photo }}" style="width: 100%; height: 100%; object-fit: cover;">
+                {% else %}
+                    <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f1f5f9; color: #cbd5e1; font-size: 3.5rem;">
+                        <i class="fas fa-user"></i>
+                    </div>
+                {% endif %}
+             </div>
+             <div class="summary-details" style="flex-grow: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.2rem;">
+                <div class="summary-item">
+                    <label style="display: block; font-size: 0.7rem; color: #64748b; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Full Name</label>
+                    <span style="font-size: 1.2rem; font-weight: 800; color: #1e293b;">{{ current_user.name }}</span>
+                </div>
+                <div class="summary-item">
+                    <label style="display: block; font-size: 0.7rem; color: #64748b; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Username</label>
+                    <span style="font-size: 1rem; color: #475569; font-weight: 500;">@{{ current_user.username }}</span>
+                </div>
+                
+                {% set booking = current_user.bookings|selectattr('status', 'equalto', 'approved')|first %}
+                {% if booking %}
+                <div class="summary-item">
+                    <label style="display: block; font-size: 0.7rem; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Current Allotment</label>
+                    <span style="font-size: 1rem; font-weight: 700; color: #4285F4;">
+                        {{ booking.shift|capitalize }} (Seat {{ booking.seat_id }})
+                    </span>
+                </div>
+                <div class="summary-item">
+                    <label style="display: block; font-size: 0.7rem; color: #64748b; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Validity Period</label>
+                    <span style="font-size: 0.9rem; font-weight: 600; color: #1e293b;">
+                        {{ booking.start_date.strftime('%d %b %Y') if booking.start_date else 'N/A' }} - {{ booking.expires_at.strftime('%d %b %Y') if booking.expires_at else 'Permanent' }}
+                    </span>
+                </div>
+                <div class="summary-item">
+                    <label style="display: block; font-size: 0.7rem; color: #94a3b8; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Membership Fees</label>
+                    <span style="font-size: 1.1rem; font-weight: 800; color: #22c55e;">₹{{ booking.amount or 0 }}</span>
+                </div>
+                {% else %}
+                <div class="summary-item" style="grid-column: span 2;">
+                    <span style="color: #64748b; font-style: italic; font-size: 0.95rem; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-info-circle"></i> No active seat allotment found. Please request a seat below.
+                    </span>
+                </div>
+                {% endif %}
+
+                <div class="summary-item" style="grid-column: 1 / -1;">
+                    <label style="display: block; font-size: 0.7rem; color: #64748b; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Registered Address</label>
+                    <span style="font-size: 0.85rem; color: #475569; line-height: 1.5; font-weight: 400;">{{ current_user.address or 'Please update your address via the profile icon above' }}</span>
+                </div>
+             </div>
+             
+             {% if booking %}
+             <div class="summary-actions" style="display: flex; flex-direction: column; gap: 0.8rem; justify-content: center; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 2rem;">
+                 <a href="/api/user/download_receipt" class="glass-btn" style="background: #22c55e; color: white; padding: 0.9rem 1.5rem; border-radius: 12px; font-weight: 800; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2); transition: 0.3s;">
+                    <i class="fas fa-file-invoice"></i> Download Receipt
+                 </a>
+             </div>
+             {% endif %}
+        </div>
+        {% endif %}
         
         <div class="shift-selector">
             <button class="shift-btn active" data-shift="morning">Morning Shift</button>
@@ -41,6 +105,49 @@
             <div class="loading-state">Loading seats...</div>
         </div>
 
+        <!-- Profile Details Section -->
+        <div id="profile-details-modal" class="photo-mgmt-section hidden">
+            <div class="glass-card inner-card" style="max-width: 500px; width: 95%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0;"><i class="fas fa-id-card"></i> Personal Details</h3>
+                    <button class="glass-btn small" onclick="toggleProfileModal()" style="padding: 0.2rem 0.6rem;">&times;</button>
+                </div>
+                
+                <div class="profile-form" style="text-align: left;">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Username</label>
+                        <input type="text" id="user-username-input" value="{{ current_user.username }}" class="glass-input" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Phone Number</label>
+                        <input type="text" id="user-phone-input" value="{{ current_user.phone }}" class="glass-input" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Father's Name</label>
+                        <input type="text" id="user-fathers-name" value="{{ current_user.fathers_name or '' }}" class="glass-input" placeholder="Enter Father's Name" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Full Address</label>
+                        <textarea id="user-address" class="glass-input" rows="3" placeholder="Enter Full Address" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0; resize: vertical;">{{ current_user.address or '' }}</textarea>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Email Address</label>
+                        <input type="email" id="user-email" value="{{ current_user.email or '' }}" class="glass-input" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    </div>
+                    
+                    <div class="upload-btns" style="display: flex; gap: 0.8rem;">
+                        <button id="save-profile-btn" class="glass-btn small active" onclick="updateUserProfile()" style="flex: 1;">
+                            <i class="fas fa-save"></i> Save Details
+                        </button>
+                        <button class="glass-btn small" onclick="toggleProfileModal(); togglePhotoUpload();" style="flex: 1;">
+                             <i class="fas fa-camera"></i> Change Photo
+                        </button>
+                    </div>
+                    <p id="profile-status" class="status-msg" style="margin-top: 1rem; font-size: 0.85rem; text-align: center;"></p>
+                </div>
+            </div>
+        </div>
+
         <!-- Photo Upload Section (Hidden by default) -->
         <div id="photo-upload-container" class="photo-mgmt-section hidden">
             <div class="glass-card inner-card">
@@ -52,10 +159,10 @@
                         <i class="fas fa-user-circle"></i>
                     {% endif %}
                 </div>
-                <input type="file" id="dashboard-photo-input" accept="image/*" class="hidden">
+                <input type="file" id="dashboard-photo-input" accept="image/*" capture="user" class="hidden">
                 <div class="upload-btns">
                     <button class="glass-btn small" onclick="document.getElementById('dashboard-photo-input').click()">
-                        <i class="fas fa-camera"></i> Select Photo
+                        <i class="fas fa-camera"></i> Open Camera
                     </button>
                     <button id="save-photo-btn" class="glass-btn small active" disabled onclick="uploadDashboardPhoto()">
                         <i class="fas fa-save"></i> Save Changes
@@ -108,13 +215,43 @@
         <div id="requests-list" class="requests-container"></div>
         <div id="allotment-controls" class="allotment-section hidden">
             <hr>
-            <p>User Requested: <span id="user-requested-plan" class="plan-badge"></span></p>
-            <p>Approve <b id="target-user-name"></b> for:</p>
-            <div class="preset-btns">
-                <button class="preset-btn" data-days="3">3 Days Trial</button>
-                <button class="preset-btn active" data-days="30">1 Month</button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 1rem;">
+                <div class="form-group">
+                    <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Seat Number</label>
+                    <input type="text" id="approve-seat-num" class="glass-input" style="margin: 0; padding: 0.6rem;">
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Shift</label>
+                    <select id="approve-shift" class="glass-input" style="margin: 0; padding: 0.6rem;" onchange="updateDefaultFee()">
+                        <option value="morning">Morning</option>
+                        <option value="evening">Evening</option>
+                        <option value="full">Full Day</option>
+                    </select>
+                </div>
             </div>
-            <input type="date" id="expiry-date-input" class="glass-input">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 1rem;">
+                <div class="form-group">
+                    <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Start Date</label>
+                    <input type="date" id="start-date-input" class="glass-input" style="margin: 0; padding: 0.6rem;" onchange="updateExpiryByPreset()">
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Expiry Date</label>
+                    <input type="date" id="expiry-date-input" class="glass-input" style="margin: 0; padding: 0.6rem;">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem;">
+                <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Fees (Amount)</label>
+                <input type="number" id="approve-amount" class="glass-input" style="margin: 0; padding: 0.6rem;" placeholder="400 or 800">
+            </div>
+
+            <p style="font-size: 0.8rem; margin: 1rem 0 0.5rem 0;">Adjust Period:</p>
+            <div class="preset-btns" style="margin-bottom: 1.5rem;">
+                <button class="preset-btn" data-days="1" onclick="updateExpiryByPreset(1)">1 Day Trial</button>
+                <button class="preset-btn active" data-days="30" onclick="updateExpiryByPreset(30)">1 Month</button>
+            </div>
+            
             <div class="modal-btns">
                 <button id="final-approve-btn" class="glass-btn">Complete Allotment</button>
                 <button id="back-to-list" class="glass-btn secondary">Back</button>
@@ -150,7 +287,8 @@
 .seat.my-seat { background: #22c55e !important; color: white !important; border-color: #16a34a; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); }
 .seat.my-seat .seat-id, .seat.my-seat .seat-user { color: white; }
 .seat.booked, .seat.approved { background: #ef4444 !important; color: white !important; border-color: #dc2626; opacity: 0.9; }
-.seat.booked .seat-id, .seat.booked .seat-user { color: white; }
+.seat.booked .seat-id, .seat.booked .seat-user, .seat.booked .seat-comment,
+.seat.approved .seat-id, .seat.approved .seat-user, .seat.approved .seat-comment { color: white !important; }
 .seat.pending { background: #fbbf24; color: #78350f; border-color: #f59e0b; }
 .blink-yellow { animation: blinker 2s infinite; }
 @keyframes blinker { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
@@ -200,8 +338,15 @@
 .glass-btn.small.reject { background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; }
 .glass-btn.small.reject:hover { background: #fecaca; }
 
-.admin-info-box { display: flex; flex-direction: column; gap: 1px; font-size: 0.55rem; color: #fff; opacity: 0.85; margin: 2px 0; }
-.admin-info-box i { font-size: 0.5rem; margin-right: 2px; }
+.seat-avatar { width: 35px; height: 35px; border-radius: 50%; overflow: hidden; background: #eee; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 1.5px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.seat-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.seat-avatar i { font-size: 1.5rem; color: #cbd5e1; }
+.seat-top-flex { display: flex; gap: 8px; align-items: flex-start; width: 100%; }
+.seat-main-info { display: flex; flex-direction: column; gap: 2px; flex-grow: 1; }
+.seat-comment { margin-top: 5px; padding-top: 5px; border-top: 1px dashed #e2e8f0; font-size: 0.65rem; color: #64748b; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: left; }
+.admin-info-box { width: 100%; margin-top: 5px; color: #fff; }
+.admin-info-box span { display: flex; align-items: center; gap: 4px; font-size: 0.65rem; }
+.admin-info-box i { font-size: 0.6rem; }
 .admin-action { padding: 4px 8px; font-size: 0.6rem; margin-top: 4px; }
 
 .plan-selector { display: flex; flex-direction: column; gap: 0.5rem; margin: 1rem 0; }
@@ -301,8 +446,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (seat.status === 'approved') {
                         const app = seat.approved_user;
                         content += `<div class="admin-info-box">
-                                        <span><i class="fas fa-phone"></i> ${app.phone}</span>
-                                        <span><i class="fas fa-calendar-alt"></i> ${app.expires_at}</span>
+                                        <div class="seat-top-flex">
+                                            ${app.profile_photo ? `<div class="seat-avatar"><img src="${app.profile_photo}"></div>` : '<div class="seat-avatar"><i class="fas fa-user-circle"></i></div>'}
+                                            <div class="seat-main-info">
+                                                <span><i class="fas fa-phone"></i> ${app.phone}</span>
+                                                <span><i class="fas fa-calendar-alt"></i> ${app.expires_at}</span>
+                                                <span><i class="fas fa-wallet"></i> ₹${app.amount || 0}</span>
+                                            </div>
+                                        </div>
+                                        ${app.comment ? `<div class="seat-comment" title="${app.comment}">${app.comment}</div>` : ''}
                                     </div>`;
                         content += `<button class="admin-action" onclick="removeSeat('${seat.id}')">Remove</button>`;
                     }
@@ -344,24 +496,51 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('requests-list').classList.remove('hidden');
     };
 
+    window.updateDefaultFee = () => {
+        const shift = document.getElementById('approve-shift').value;
+        const amountInput = document.getElementById('approve-amount');
+        amountInput.value = (shift === 'full') ? 800 : 400;
+    };
+
+    window.updateExpiryByPreset = (days) => {
+        if (!days) {
+            // If called from start-date change, find active preset
+            const active = document.querySelector('.preset-btn.active');
+            days = active ? parseInt(active.dataset.days) : 30;
+        } else {
+            // Update active state
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`.preset-btn[data-days="${days}"]`).classList.add('active');
+        }
+        
+        const startVal = document.getElementById('start-date-input').value;
+        if (!startVal) return;
+        
+        const start = new Date(startVal);
+        start.setDate(start.getDate() + days);
+        document.getElementById('expiry-date-input').value = start.toISOString().split('T')[0];
+    };
+
     window.prepareApproval = (id, name, plan) => {
         targetBookingId = id;
         document.getElementById('target-user-name').innerText = name;
-        document.getElementById('user-requested-plan').innerText = plan;
         document.getElementById('requests-list').classList.add('hidden');
         document.getElementById('allotment-controls').classList.remove('hidden');
         
-        // Reset min date on every open
-        const now = new Date();
-        const tzOffset = now.getTimezoneOffset() * 60000;
-        const localISOTime = (new Date(now - tzOffset)).toISOString().slice(0, 16);
-        if (expiryInput) expiryInput.min = localISOTime;
+        // Defaults
+        document.getElementById('approve-seat-num').value = selectedSeat;
+        document.getElementById('approve-shift').value = currentShift;
         
-        // Auto-select preset based on user request
-        if (plan === '3 Days Trial') {
-            document.querySelector('.preset-btn[data-days="3"]').click();
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('start-date-input').value = today;
+        
+        updateDefaultFee();
+        
+        // Auto-select preset and calculate expiry
+        if (plan.includes('Trial')) {
+            updateExpiryByPreset(1);
         } else {
-            document.querySelector('.preset-btn[data-days="30"]').click();
+            updateExpiryByPreset(30);
         }
     };
 
@@ -381,12 +560,24 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     document.getElementById('final-approve-btn').onclick = async () => {
+        const payload = {
+            booking_id: targetBookingId,
+            seat_id: document.getElementById('approve-seat-num').value,
+            shift: document.getElementById('approve-shift').value,
+            start_date: document.getElementById('start-date-input').value,
+            expiry_date: document.getElementById('expiry-date-input').value,
+            amount: document.getElementById('approve-amount').value
+        };
         const res = await fetch('/api/admin/approve', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({booking_id: targetBookingId, expiry_date: expiryInput.value})
+            body: JSON.stringify(payload)
         });
         if (res.ok) { approvalModal.classList.add('hidden'); loadSeats(); }
+        else {
+            const err = await res.json();
+            alert(err.message || 'Approval failed');
+        }
     };
 
     window.removeSeat = async (id) => {
@@ -449,6 +640,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Photo Mgmt Logic
+    window.toggleProfileModal = () => {
+        document.getElementById('profile-details-modal').classList.toggle('hidden');
+    };
+
+    window.updateUserProfile = async () => {
+        const btn = document.getElementById('save-profile-btn');
+        const status = document.getElementById('profile-status');
+        btn.disabled = true; btn.innerText = 'Saving...';
+        
+        const payload = {
+            username: document.getElementById('user-username-input').value,
+            phone: document.getElementById('user-phone-input').value,
+            fathers_name: document.getElementById('user-fathers-name').value,
+            address: document.getElementById('user-address').value,
+            email: document.getElementById('user-email').value
+        };
+        
+        try {
+            const res = await fetch('/api/user/update_profile', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                status.innerText = 'Profile updated successfully!';
+                status.style.color = '#22c55e';
+                setTimeout(() => toggleProfileModal(), 1500);
+            } else {
+                const data = await res.json();
+                status.innerText = data.message || 'Error updating profile.';
+                status.style.color = '#ef4444';
+            }
+        } catch (e) {
+            status.innerText = 'Connection error.';
+            status.style.color = '#ef4444';
+        } finally {
+            btn.disabled = false; btn.innerText = 'Save Details';
+        }
+    };
+
     window.togglePhotoUpload = () => {
         document.getElementById('photo-upload-container').classList.toggle('hidden');
     };

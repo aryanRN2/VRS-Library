@@ -54,6 +54,9 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False)
     status = db.Column(db.String(20), default='pending') # pending, active, frozen
     
+    fathers_name = db.Column(db.String(100), nullable=True)
+    address = db.Column(db.Text, nullable=True)
+    
     # Admin only comments
     admin_note_1 = db.Column(db.Text, nullable=True)
     admin_note_2 = db.Column(db.Text, nullable=True)
@@ -73,6 +76,8 @@ class Booking(db.Model):
     requested_plan = db.Column(db.String(20), default='1 Month')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(IST))
     expires_at = db.Column(db.DateTime)
+    start_date = db.Column(db.DateTime, default=lambda: datetime.now(IST))
+    amount = db.Column(db.Integer, default=0)
 
 class WaitingRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -97,6 +102,11 @@ def log_activity(action, details=None, user_id=None):
     except Exception as e:
         print(f"Logging error: {e}")
         db.session.rollback()
+
+def get_default_amount(shift):
+    if shift == 'full':
+        return 800
+    return 400
 
 # Simplified initialization
 with app.app_context():
@@ -175,7 +185,9 @@ def admin_dashboard():
             'is_active': user.is_active,
             'status': user.status,
             'purpose': user.purpose,
-            'expires_at': active_booking.expires_at.strftime('%Y-%m-%d %H:%M') if active_booking and active_booking.expires_at else 'No Expiry',
+            'start_date': active_booking.start_date.strftime('%d %b %Y') if active_booking and active_booking.start_date else None,
+            'expires_at': active_booking.expires_at.strftime('%d %b %Y') if active_booking and active_booking.expires_at else 'No Expiry',
+            'amount': active_booking.amount if active_booking else 0,
             'admin_note_1': user.admin_note_1,
             'booking': active_booking.seat_id if active_booking else None,
             'shift': active_booking.shift if active_booking else None
@@ -189,6 +201,58 @@ def admin_dashboard():
                            pending_users=pending_users, 
                            active_users=active_users_data,
                            logs=recent_logs)
+
+@app.route('/api/admin/finance')
+@login_required
+def get_finance_stats():
+    if not current_user.is_admin: return jsonify({'success': False}), 403
+    
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    
+    now = datetime.now(IST)
+    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Current month revenue (IST comparison)
+    # We strip timezone for DB comparison if needed, or handle it properly
+    # Assuming created_at is stored in IST as per model default
+    current_month_total = db.session.query(func.sum(Booking.amount)).filter(
+        Booking.created_at >= start_of_month.replace(tzinfo=None)
+    ).scalar() or 0
+    
+    # Previous month revenue
+    end_of_prev_month = start_of_month - timedelta(seconds=1)
+    start_of_prev_month = end_of_prev_month.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    prev_month_total = db.session.query(func.sum(Booking.amount)).filter(
+        Booking.created_at >= start_of_prev_month.replace(tzinfo=None),
+        Booking.created_at <= end_of_prev_month.replace(tzinfo=None)
+    ).scalar() or 0
+    
+    # Data for the chart (last 6 months)
+    history = []
+    for i in range(6):
+        m_start = (start_of_month - timedelta(days=i*30)).replace(day=1)
+        m_end = (m_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
+        
+        m_total = db.session.query(func.sum(Booking.amount)).filter(
+            Booking.created_at >= m_start.replace(tzinfo=None),
+            Booking.created_at <= m_end.replace(tzinfo=None)
+        ).scalar() or 0
+        
+        history.append({
+            'month': m_start.strftime('%B %Y'),
+            'total': m_total
+        })
+    
+    # Reverse history to show chronological order
+    history.reverse()
+    
+    return jsonify({
+        'current_month': current_month_total,
+        'prev_month': prev_month_total,
+        'history': history
+    })
 
 @app.route('/api/admin/send_whatsapp', methods=['POST'])
 @login_required
@@ -278,6 +342,7 @@ def register():
     return render_template('register.html')
 
 @app.route('/api/upload_photo', methods=['POST'])
+@login_required
 def upload_photo():
     data = request.get_json()
     user_id = data.get('user_id')
@@ -286,12 +351,145 @@ def upload_photo():
     if not user_id or not photo_data:
         return jsonify({'success': False, 'message': 'Missing data'}), 400
         
+    # Prevent DoS via massive payload (restrict to ~75KB base64 string)
+    if len(photo_data) > 100000:
+        return jsonify({'success': False, 'message': 'Image payload too large.'}), 413
+        
+    if not current_user.is_admin and current_user.id != int(user_id):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+        
     user = User.query.get(user_id)
     if user:
         user.profile_photo = photo_data
         db.session.commit()
+        log_activity("Profile Updated", f"User {user.name} updated their profile photo.", user_id=user.id)
         return jsonify({'success': True})
     return jsonify({'success': False, 'message': 'User not found'}), 404
+
+@app.route('/api/user/download_receipt')
+@login_required
+def download_receipt():
+    # Fetch the approved booking for the current user
+    booking = Booking.query.filter_by(user_id=current_user.id, status='approved').first()
+    if not booking:
+        return "No active booking found. You must have an allotted seat to download a receipt.", 404
+
+    from io import BytesIO
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.units import inch
+    from flask import send_file
+
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    # --- Header Design ---
+    p.setStrokeColorRGB(0.26, 0.52, 0.96) # Accent Color
+    p.setLineWidth(2)
+    p.line(0.5*inch, height - 0.5*inch, width - 0.5*inch, height - 0.5*inch)
+    
+    p.setFont("Helvetica-Bold", 28)
+    p.setFillColorRGB(0.12, 0.16, 0.23) # Dark Blue/Slate
+    p.drawCentredString(width/2, height - 1.2*inch, "VRS DIGITAL LIBRARY")
+    
+    p.setFont("Helvetica", 12)
+    p.setFillColorRGB(0.39, 0.44, 0.54) # Muted Text
+    p.drawCentredString(width/2, height - 1.5*inch, "Premium Membership Allotment Receipt")
+    
+    p.setLineWidth(1)
+    p.setStrokeColorRGB(0.89, 0.91, 0.94) # Light Border
+    p.line(1*inch, height - 1.8*inch, width - 1*inch, height - 1.8*inch)
+
+    # --- Body Content ---
+    y_start = height - 2.3*inch
+    
+    # Member Section Box
+    p.setFillColorRGB(0.97, 0.98, 1.0) # Very Light Blue BG
+    p.rect(1*inch, y_start - 1.5*inch, width - 2*inch, 1.7*inch, fill=1, stroke=0)
+    
+    p.setFillColorRGB(0.12, 0.16, 0.23)
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(1.2*inch, y_start, "MEMBER INFORMATION")
+    
+    p.setFont("Helvetica", 11)
+    y = y_start - 0.4*inch
+    p.drawString(1.4*inch, y, f"Full Name: {current_user.name}")
+    y -= 0.25*inch
+    p.drawString(1.4*inch, y, f"Username: @{current_user.username}")
+    y -= 0.25*inch
+    p.drawString(1.4*inch, y, f"Contact: {current_user.phone}")
+    y -= 0.25*inch
+    p.drawString(1.4*inch, y, f"Address: {current_user.address or 'Contact details on file'}")
+
+    # Allotment Section
+    y_start_2 = y - 0.8*inch
+    p.setFillColorRGB(0.12, 0.16, 0.23)
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(1.2*inch, y_start_2, "ALLOTMENT DETAILS")
+    
+    # Table Header BG
+    p.setFillColorRGB(0.26, 0.52, 0.96)
+    p.rect(1.2*inch, y_start_2 - 0.4*inch, width - 2.4*inch, 0.3*inch, fill=1, stroke=0)
+    
+    p.setFillColorRGB(1, 1, 1)
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(1.3*inch, y_start_2 - 0.3*inch, "DESCRIPTION")
+    p.drawRightString(width - 1.3*inch, y_start_2 - 0.3*inch, "DETAILS")
+    
+    p.setFillColorRGB(0.12, 0.16, 0.23)
+    p.setFont("Helvetica", 11)
+    y = y_start_2 - 0.6*inch
+    
+    items = [
+        ("Seat Assigned", f"Seat Number {booking.seat_id}"),
+        ("Shift Selection", f"{booking.shift.capitalize()} Shift"),
+        ("Commencement Date", booking.start_date.strftime('%d %B %Y') if booking.start_date else 'Immediate'),
+        ("Membership Expiry", booking.expires_at.strftime('%d %B %Y') if booking.expires_at else 'Permanent'),
+        ("Total Amount Paid", f"INR {booking.amount or 0}.00")
+    ]
+    
+    for label, val in items:
+        p.drawString(1.3*inch, y, label)
+        p.drawRightString(width - 1.3*inch, y, val)
+        p.setStrokeColorRGB(0.95, 0.96, 0.97)
+        p.line(1.2*inch, y - 0.1*inch, width - 1.2*inch, y - 0.1*inch)
+        y -= 0.35*inch
+
+    # --- Footer ---
+    p.setFont("Helvetica-Oblique", 9)
+    p.setFillColorRGB(0.5, 0.5, 0.5)
+    p.drawCentredString(width/2, 1.2*inch, "This is an electronically generated document. No physical signature is required.")
+    p.setFont("Helvetica", 8)
+    p.drawCentredString(width/2, 1.0*inch, f"Generated by VRS Management System on {datetime.now(IST).strftime('%d %b %Y, %I:%M %p')}")
+    
+    p.setStrokeColorRGB(0.26, 0.52, 0.96)
+    p.line(0.5*inch, 0.7*inch, width - 0.5*inch, 0.7*inch)
+
+    p.showPage()
+    p.save()
+
+    buffer.seek(0)
+    filename = f"Receipt_{current_user.username}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
+
+@app.route('/api/user/update_profile', methods=['POST'])
+@login_required
+def update_profile():
+    data = request.get_json()
+    user = User.query.get(current_user.id)
+    if not user: return jsonify({'success': False}), 404
+    
+    # Allow users to update specific fields
+    user.username = data.get('username', user.username)
+    user.phone = data.get('phone', user.phone)
+    user.fathers_name = data.get('fathers_name', user.fathers_name)
+    user.address = data.get('address', user.address)
+    user.email = data.get('email', user.email)
+    
+    db.session.commit()
+    log_activity("Profile Updated", f"User {user.name} updated their profile details.", user_id=user.id)
+    return jsonify({'success': True})
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -314,6 +512,7 @@ def login():
                     flash('Your account is pending admin approval.', 'warning')
                     return redirect(url_for('login'))
                 login_user(user)
+                log_activity("Login", f"{'Admin' if user.is_admin else 'Member'} {user.name} logged in.", user_id=user.id)
                 return redirect(url_for('admin_dashboard') if user.is_admin else url_for('membership'))
             else:
                 print(f"Password mismatch for user: {login_id}")
@@ -386,7 +585,10 @@ def get_seats():
             'purpose': b.user.purpose, 
             'status': b.status,
             'requested_plan': b.requested_plan,
-            'expires_at': b.expires_at.strftime('%d %b %Y') if b.expires_at else 'Permanent'
+            'expires_at': b.expires_at.strftime('%d %b %Y') if b.expires_at else 'Permanent',
+            'profile_photo': b.user.profile_photo,
+            'amount': b.amount,
+            'comment': b.user.admin_note_1
         }
         if b.status == 'approved': seat_map[b.seat_id]['approved'] = data
         else: seat_map[b.seat_id]['pending'].append(data)
@@ -483,19 +685,24 @@ def approve_booking():
     data = request.get_json()
     booking = Booking.query.get(data.get('booking_id'))
     if booking:
+        # Allow admin to change seat/shift/amount during approval
+        booking.seat_id = str(data.get('seat_id', booking.seat_id))
+        booking.shift = data.get('shift', booking.shift)
+        booking.amount = int(data.get('amount', booking.amount or 0))
+        
+        start = data.get('start_date')
+        if start:
+            try:
+                booking.start_date = datetime.strptime(start, '%Y-%m-%d')
+            except: pass
+            
         expiry = data.get('expiry_date')
         if expiry:
             try:
-                # Handle both YYYY-MM-DD and potentially datetime-local format
                 try:
                     expiry_date = datetime.strptime(expiry, '%Y-%m-%d')
                 except:
                     expiry_date = datetime.fromisoformat(expiry.replace(' ', 'T'))
-                
-                # SERVER-SIDE BLOCK: Prevent past dates
-                if expiry_date.date() < datetime.now().date():
-                    return jsonify({'success': False, 'message': 'Cannot allot a membership to a past date.'}), 400
-                
                 booking.expires_at = expiry_date
             except Exception as e:
                 print(f"Approval date error: {e}")
@@ -503,10 +710,24 @@ def approve_booking():
             booking.expires_at = datetime.now(IST).replace(tzinfo=None) + timedelta(days=30)
 
         booking.status = 'approved'
-        others = Booking.query.filter(Booking.seat_id == booking.seat_id, Booking.shift == booking.shift, Booking.status == 'pending', Booking.id != booking.id).all()
+        
+        # Cross-shift conflict cleanup
+        if booking.shift == 'morning':
+            conflicting_shifts = ['morning', 'full']
+        elif booking.shift == 'evening':
+            conflicting_shifts = ['evening', 'full']
+        else: # full
+            conflicting_shifts = ['morning', 'evening', 'full']
+            
+        others = Booking.query.filter(
+            Booking.seat_id == booking.seat_id, 
+            Booking.shift.in_(conflicting_shifts), 
+            Booking.status == 'pending', 
+            Booking.id != booking.id
+        ).all()
         for o in others: db.session.delete(o)
         db.session.commit()
-        log_activity("Booking Approved", f"Seat {booking.seat_id} ({booking.shift}) approved for {booking.user.name}.", user_id=booking.user_id)
+        log_activity("Booking Approved", f"Seat {booking.seat_id} ({booking.shift}) approved for {booking.user.name} at ₹{booking.amount}.", user_id=booking.user_id)
         return jsonify({'success': True})
     return jsonify({'success': False}), 404
 
@@ -543,6 +764,7 @@ def remove_seat():
     return jsonify({'success': False}), 404
 
 @app.route('/api/waiting_room')
+@login_required
 def get_waiting_room():
     waiting = WaitingRoom.query.all()
     return jsonify([{'user_name': w.user_name, 'seat': w.removed_from_seat} for w in waiting])
@@ -569,10 +791,14 @@ def get_user_details(user_id):
         'admin_note_1': user.admin_note_1,
         'admin_note_2': user.admin_note_2,
         'password': user.password,
+        'fathers_name': user.fathers_name or '',
+        'address': user.address or '',
         'booking_id': booking.id if booking else None,
         'expires_at': booking.expires_at.strftime('%Y-%m-%dT%H:%M') if booking and booking.expires_at else None,
+        'start_date': booking.start_date.strftime('%Y-%m-%dT%H:%M') if booking and booking.start_date else None,
         'seat_id': booking.seat_id if booking else '',
         'shift': booking.shift if booking else 'morning',
+        'amount': booking.amount if booking else get_default_amount('morning'),
         'status': user.status
     })
 
@@ -630,6 +856,8 @@ def update_user():
         user.email = data.get('email', user.email)
         user.admin_note_1 = data.get('admin_note_1', user.admin_note_1)
         user.admin_note_2 = data.get('admin_note_2', user.admin_note_2)
+        user.fathers_name = data.get('fathers_name', user.fathers_name)
+        user.address = data.get('address', user.address)
         
         # Status management: pending -> active/frozen
         is_active_toggle = bool(data.get('is_active'))
@@ -685,16 +913,27 @@ def update_user():
                 
             if not booking:
                 booking = Booking(user_id=user.id, seat_id=str(seat_id), shift=shift, status='approved')
+                booking.amount = data.get('amount') or get_default_amount(shift)
                 db.session.add(booking)
             else:
                 booking.seat_id = str(seat_id)
                 booking.shift = shift
                 booking.status = 'approved'
+                if data.get('amount'):
+                    booking.amount = int(data.get('amount'))
+                elif not booking.amount:
+                    booking.amount = get_default_amount(shift)
                 
             if data.get('expires_at'):
                 try:
                     expiry_str = data.get('expires_at')
                     booking.expires_at = datetime.fromisoformat(expiry_str.replace(' ', 'T'))
+                except: pass
+            
+            if data.get('start_date'):
+                try:
+                    start_str = data.get('start_date')
+                    booking.start_date = datetime.fromisoformat(start_str.replace(' ', 'T'))
                 except: pass
         elif seat_id and new_status != 'active':
             # If they are trying to ALLOT a seat to a non-active user (who wasn't just frozen)
@@ -724,4 +963,6 @@ def delete_user():
     return jsonify({'success': False, 'message': 'Cannot delete admin or user not found'})
 
 if __name__ == '__main__':
+    # Schema updated: fathers_name, address, start_date added.
+    # Library added: reportlab
     app.run(debug=True, port=9090)
