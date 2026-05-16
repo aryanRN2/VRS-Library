@@ -39,7 +39,16 @@ if os.environ.get('DATABASE_URL'):
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    }
 elif os.environ.get('VERCEL'):
+    # Vercel is serverless; SQLite in /tmp is NOT persistent.
+    # This is only a fallback to prevent 500 errors if DATABASE_URL is missing.
+    print("WARNING: Running on Vercel without DATABASE_URL. Data will NOT persist.")
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/library.db'
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'library.db')
@@ -223,8 +232,18 @@ with app.app_context():
             db.session.commit()
             print("Database setup complete.")
     except Exception as e:
-        print(f"Startup check skipped: {e}")
+        print(f"Startup check failed: {e}")
+        # In Vercel, we don't want to crash the whole app on startup if DB is momentarily down
+        # but we should log it.
         traceback.print_exc()
+
+@app.route('/health')
+def health_check():
+    try:
+        db.session.execute(text('SELECT 1'))
+        return jsonify({'status': 'healthy', 'database': 'connected', 'vercel': bool(os.environ.get('VERCEL'))}), 200
+    except Exception as e:
+        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
 @app.errorhandler(Exception)
 def handle_exception(e):
