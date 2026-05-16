@@ -595,8 +595,12 @@ def register():
     if request.method == 'POST':
         try:
             username = request.form.get('username')
-            email = request.form.get('email')
-            
+            # Sanitize optional fields to store NULL instead of empty strings
+            email = request.form.get('email', '').strip() or None
+            purpose = request.form.get('purpose', '').strip() or 'Library Study'
+            description = request.form.get('description', '').strip() or None
+            phone = request.form.get('phone', '').strip()
+
             # Check if username or email (if provided) already exists
             user_query = User.query.filter(User.username == username)
             if email:
@@ -608,10 +612,11 @@ def register():
                 
             password = request.form.get('password', '').strip()
             hashed_password = generate_password_hash(password) if password else generate_password_hash('vrs123')
+
             new_user = User(
                 username=username, email=email, password=hashed_password, 
-                name=request.form.get('name'), phone=request.form.get('phone'), 
-                purpose=request.form.get('purpose'), description=request.form.get('description'), 
+                name=request.form.get('name'), phone=phone, 
+                purpose=purpose, description=description, 
                 status='pending'
             )
             db.session.add(new_user)
@@ -1155,7 +1160,7 @@ def add_user_admin():
     if User.query.filter_by(username=username).first():
         return jsonify({'success': False, 'message': 'Username already exists'}), 400
         
-    email = data.get('email', '').strip()
+    email = data.get('email', '').strip() or None
     if email and User.query.filter_by(email=email).first():
         return jsonify({'success': False, 'message': 'Email already exists'}), 400
         
@@ -1163,10 +1168,10 @@ def add_user_admin():
         username=username,
         name=data.get('name'),
         phone=data.get('phone'),
-        email=email or None,
+        email=email,
         password=generate_password_hash(data.get('password', 'vrs123')),
-        fathers_name=data.get('fathers_name'),
-        address=data.get('address'),
+        fathers_name=data.get('fathers_name', '').strip() or None,
+        address=data.get('address', '').strip() or None,
         purpose=data.get('purpose', 'Library Study'),
         admin_note_1=data.get('note_1'),
         admin_note_2=data.get('note_2'),
