@@ -251,24 +251,28 @@ def favicon():
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # Pass through standard HTTP errors (like 404) without flashing
     from werkzeug.exceptions import HTTPException
-    if isinstance(e, HTTPException) and e.code == 404:
-        return e
-        
-    # Log the traceback for real crashes
-    print("!!! GLOBAL ERROR CAUGHT !!!")
+    
+    # If it's a standard HTTP error (404, 405, etc.), just let it be
+    if isinstance(e, HTTPException):
+        if e.code < 500:
+            return e
+            
+    # Log the traceback for real server crashes (500+)
+    print("!!! SERVER CRASH CAUGHT !!!")
     traceback.print_exc()
     
-    # Check if it's an API request
+    # API requests get JSON
     if request.path.startswith('/api/'):
         return jsonify({
             'success': False,
-            'message': str(e)
+            'message': 'Internal Server Error',
+            'error': str(e)
         }), 500
         
-    # Standard request - only flash if it's not a standard 404
-    flash(f'System Error: {str(e)}', 'danger')
+    # Standard web requests get a flash message and redirect
+    # We only flash for actual server errors (500+)
+    flash(f'Server Error: {str(e)}', 'danger')
     return redirect(url_for('index'))
 
 @login_manager.user_loader
