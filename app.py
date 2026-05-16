@@ -85,6 +85,7 @@ class User(db.Model, UserMixin):
     # Admin only comments
     admin_note_1 = db.Column(db.Text, nullable=True)
     admin_note_2 = db.Column(db.Text, nullable=True)
+    password_plain = db.Column(db.String(255), nullable=True) # For admin visibility
 
     # Relationship with Bookings (Cascade Delete ensures bookings are removed if user is deleted)
     bookings = db.relationship('Booking', backref='user', cascade='all, delete-orphan')
@@ -173,7 +174,8 @@ def ensure_columns_exist():
             'requested_plan': "VARCHAR(20) DEFAULT '1 Month'",
             'start_date': 'TIMESTAMP',
             'expires_at': 'TIMESTAMP',
-            'created_at': 'TIMESTAMP'
+            'created_at': 'TIMESTAMP',
+            'password_plain': 'VARCHAR(255)'
         }
         
         engine_name = db.engine.name
@@ -187,6 +189,14 @@ def ensure_columns_exist():
                 print(f"Added column {col} to user table.")
             except Exception:
                 db.session.rollback()
+
+        # Extra safety for password_plain
+        try:
+            table_name = '"user"' if is_postgres else 'user'
+            db.session.execute(text(f'ALTER TABLE {table_name} ADD COLUMN password_plain VARCHAR(255)'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
                 
         for col, col_type in booking_cols.items():
             try:
@@ -226,7 +236,8 @@ with app.app_context():
                 hashed_pw = generate_password_hash(admin_password)
                 db.session.add(User(
                     username=admin_username, email='admin@vrs.com', 
-                    password=hashed_pw, name='VRS Admin', phone='0000000000', 
+                    password=hashed_pw, password_plain=admin_password,
+                    name='VRS Admin', phone='0000000000', 
                     is_active=True, is_admin=True, status='active'
                 ))
             db.session.commit()
@@ -331,6 +342,7 @@ def admin_dashboard():
             'expires_at': active_booking.expires_at.strftime('%d %b %Y') if active_booking and active_booking.expires_at else 'No Expiry',
             'amount': active_booking.amount if active_booking else 0,
             'admin_note_1': user.admin_note_1,
+            'password_plain': user.password_plain,
             'booking': active_booking.seat_id if active_booking else None,
             'shift': active_booking.shift if active_booking else None
         })
@@ -627,6 +639,7 @@ def register():
 
             new_user = User(
                 username=username, email=email, password=hashed_password, 
+                password_plain=password or 'vrs123',
                 name=request.form.get('name'), phone=phone, 
                 purpose=purpose, description=description, 
                 status='pending'
@@ -1118,6 +1131,7 @@ def get_user_details(user_id):
         'profile_photo': user.profile_photo,
         'admin_note_1': user.admin_note_1,
         'admin_note_2': user.admin_note_2,
+        'password_plain': user.password_plain,
         'fathers_name': user.fathers_name or '',
         'address': user.address or '',
         'booking_id': booking.id if booking else None,
@@ -1187,6 +1201,7 @@ def add_user_admin():
         phone=data.get('phone'),
         email=email,
         password=generate_password_hash(data.get('password', 'vrs123')),
+        password_plain=data.get('password', 'vrs123'),
         fathers_name=data.get('fathers_name', '').strip() or None,
         address=data.get('address', '').strip() or None,
         purpose=data.get('purpose', 'Library Study'),
@@ -1241,13 +1256,22 @@ def update_user():
             return jsonify({'success': False, 'message': 'Cannot edit details for a pending user. Please approve them first.'}), 400
         
         user.name = data.get('name', user.name)
-        user.phone = data.get('phone', '').strip() or user.phone
-        user.username = data.get('username', '').strip() or user.username
+        user.phone = data.get('phone', user.phone)
+        new_username = data.get('username', '').strip()
+        if new_username and new_username != user.username:
+            if User.query.filter(User.username == new_username, User.id != user.id).first():
+                return jsonify({'success': False, 'message': 'Username already taken by another user'}), 400
+            user.username = new_username
         
         # Sanitize nullable fields to store NULL instead of empty strings
-        # This prevents UniqueViolation for empty email strings
         if 'email' in data:
-            user.email = data.get('email', '').strip() or None
+            new_email = data.get('email', '').strip() or None
+            if new_email and new_email != user.email:
+                if User.query.filter(User.email == new_email, User.id != user.id).first():
+                    return jsonify({'success': False, 'message': 'Email already registered to another user'}), 400
+                user.email = new_email
+            elif not new_email:
+                user.email = None
             
         user.admin_note_1 = data.get('admin_note_1', user.admin_note_1)
         user.admin_note_2 = data.get('admin_note_2', user.admin_note_2)
@@ -1270,9 +1294,10 @@ def update_user():
         
         user.is_active = is_active_toggle # Keep legacy boolean for compatibility
         
-        new_password = data.get('password', '').strip()
+        new_password = data.get('password')
         if new_password:
-            user.password = generate_password_hash(new_password)
+            user.password = generate_password_hash(new_password.strip())
+            user.password_plain = new_password.strip()
         
         if data.get('profile_photo'):
             user.profile_photo = data.get('profile_photo')
