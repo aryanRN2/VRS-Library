@@ -9,6 +9,7 @@
         </div>
 
         <form method="POST" class="auth-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="input-field full-width" style="margin-bottom: 1.2rem;">
                 <i class="fas fa-at"></i>
                 <input type="text" name="username" placeholder="Choose Username" required>

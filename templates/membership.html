@@ -747,7 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!confirm('Are you sure you want to reject this request?')) return;
         const res = await fetch('/api/admin/reject', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
             body: JSON.stringify({booking_id: bookingId})
         });
         if (res.ok) {
@@ -769,7 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const res = await fetch('/api/admin/approve', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
             body: JSON.stringify(payload)
         });
         if (res.ok) { approvalModal.classList.add('hidden'); loadSeats(); }
@@ -784,7 +784,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (confirm(`FINAL WARNING: This will immediately end the session for Seat ${id} and move the user to the Waiting Room. Proceed?`)) {
                 const res = await fetch('/api/admin/remove', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
                     body: JSON.stringify({seat_id: id, shift: currentShift})
                 });
                 if (res.ok) loadSeats();
@@ -802,7 +802,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const activePlan = document.querySelector('.plan-btn.active').dataset.plan;
         const res = await fetch('/api/book', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
             body: JSON.stringify({seat_id: selectedSeat, shift: currentShift, plan: activePlan})
         });
         const result = await res.json();
@@ -862,7 +862,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/user/update_profile', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
@@ -1020,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/admin/check_seat', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
                 body: JSON.stringify({ seat_id: seatId, shift: shift, user_id: userId })
             });
             const data = await res.json();
@@ -1057,7 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const res = await fetch('/api/admin/user/update', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
                     body: JSON.stringify(payload)
                 });
                 if (res.ok) {
@@ -1096,7 +1096,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/admin/user/delete', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
                 body: JSON.stringify({ user_id: userId })
             });
             if (res.ok) { closeEditModal(); loadSeats(); }
@@ -1111,7 +1111,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch('/api/upload_photo', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
                 body: JSON.stringify({
                     user_id: {{ current_user.id if current_user.is_authenticated else 'null' }},
                     photo: compressedData

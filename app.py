@@ -1,5 +1,6 @@
 import os
 import requests
+import traceback
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import pytz
@@ -13,7 +14,18 @@ from sqlalchemy import or_, text
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from markupsafe import escape
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 app = Flask(__name__)
+csrf = CSRFProtect(app)
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
 
 def safe_str(val):
     return str(escape(str(val))) if val else val
@@ -55,7 +67,6 @@ class User(db.Model, UserMixin):
     purpose = db.Column(db.String(100))
     description = db.Column(db.Text)
     profile_photo = db.Column(db.Text, nullable=True) # Store compressed base64
-    is_active = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
     status = db.Column(db.String(20), default='pending') # pending, active, frozen
     
@@ -65,9 +76,21 @@ class User(db.Model, UserMixin):
     # Admin only comments
     admin_note_1 = db.Column(db.Text, nullable=True)
     admin_note_2 = db.Column(db.Text, nullable=True)
-    
+
     # Relationship with Bookings (Cascade Delete ensures bookings are removed if user is deleted)
     bookings = db.relationship('Booking', backref='user', cascade='all, delete-orphan')
+
+    @property
+    def is_active(self):
+        return self.status == 'active'
+
+    @is_active.setter
+    def is_active(self, value):
+        # Allow setting for compatibility, but prioritize status
+        if value:
+            self.status = 'active'
+        elif self.status == 'active':
+            self.status = 'frozen'
 
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
@@ -92,8 +115,11 @@ class Booking(db.Model):
 
 class WaitingRoom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_name = db.Column(db.String(100), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     removed_from_seat = db.Column(db.String(10))
+    
+    # Relationship
+    user = db.relationship('User', backref='waiting_room_entry', uselist=False)
 
 class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -119,11 +145,58 @@ def get_default_amount(shift):
         return 800
     return 400
 
+def ensure_columns_exist():
+    """Simple 'poor man's migration' to ensure all columns exist in Postgres/SQLite."""
+    try:
+        # User table columns
+        user_cols = {
+            'fathers_name': 'VARCHAR(100)',
+            'address': 'TEXT',
+            'status': "VARCHAR(20) DEFAULT 'pending'",
+            'admin_note_1': 'TEXT',
+            'admin_note_2': 'TEXT',
+            'profile_photo': 'TEXT',
+            'is_admin': 'BOOLEAN DEFAULT FALSE'
+        }
+        # Booking table columns
+        booking_cols = {
+            'amount': 'INTEGER DEFAULT 0',
+            'requested_plan': "VARCHAR(20) DEFAULT '1 Month'",
+            'start_date': 'TIMESTAMP',
+            'expires_at': 'TIMESTAMP',
+            'created_at': 'TIMESTAMP'
+        }
+        
+        engine_name = db.engine.name
+        is_postgres = engine_name == 'postgresql'
+        
+        for col, col_type in user_cols.items():
+            try:
+                table_name = '"user"' if is_postgres else 'user'
+                db.session.execute(text(f'ALTER TABLE {table_name} ADD COLUMN {col} {col_type}'))
+                db.session.commit()
+                print(f"Added column {col} to user table.")
+            except Exception:
+                db.session.rollback()
+                
+        for col, col_type in booking_cols.items():
+            try:
+                db.session.execute(text(f'ALTER TABLE booking ADD COLUMN {col} {col_type}'))
+                db.session.commit()
+                print(f"Added column {col} to booking table.")
+            except Exception:
+                db.session.rollback()
+    except Exception as e:
+        print(f"Migration helper error: {e}")
+
 # Simplified initialization
 with app.app_context():
     try:
         # Just create tables if they don't exist
         db.create_all()
+        
+        # Run our simple migration check
+        ensure_columns_exist()
         
         # Attempt to expand password column for existing Postgres databases
         try:
@@ -151,6 +224,25 @@ with app.app_context():
             print("Database setup complete.")
     except Exception as e:
         print(f"Startup check skipped: {e}")
+        traceback.print_exc()
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Log the traceback
+    print("!!! GLOBAL ERROR CAUGHT !!!")
+    traceback.print_exc()
+    
+    # Check if it's an API request
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'trace': traceback.format_exc() if app.debug else None
+        }), 500
+        
+    # Standard request
+    flash(f'System Error: {str(e)}', 'danger')
+    return redirect(url_for('index'))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -482,33 +574,38 @@ def approve_user(user_id):
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        
-        # Check if username or email (if provided) already exists
-        user_query = User.query.filter(User.username == username)
-        if email:
-            user_query = User.query.filter(or_(User.username == username, User.email == email))
+        try:
+            username = request.form.get('username')
+            email = request.form.get('email')
             
-        if user_query.first():
-            flash('Username or Email already exists.', 'danger')
+            # Check if username or email (if provided) already exists
+            user_query = User.query.filter(User.username == username)
+            if email:
+                user_query = User.query.filter(or_(User.username == username, User.email == email))
+                
+            if user_query.first():
+                flash('Username or Email already exists.', 'danger')
+                return redirect(url_for('register'))
+                
+            password = request.form.get('password', '').strip()
+            hashed_password = generate_password_hash(password) if password else generate_password_hash('vrs123')
+            new_user = User(
+                username=username, email=email, password=hashed_password, 
+                name=request.form.get('name'), phone=request.form.get('phone'), 
+                purpose=request.form.get('purpose'), description=request.form.get('description'), 
+                status='pending'
+            )
+            db.session.add(new_user)
+            db.session.commit()
+            
+            log_activity("New Registration", f"New user {new_user.name} (@{new_user.username}) registered.", user_id=new_user.id)
+                
+            flash('Registration successful! Please wait for admin approval.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error during registration: {str(e)}', 'danger')
             return redirect(url_for('register'))
-            
-        password = request.form.get('password', '').strip()
-        hashed_password = generate_password_hash(password) if password else generate_password_hash('vrs123')
-        new_user = User(
-            username=username, email=email, password=hashed_password, 
-            name=request.form.get('name'), phone=request.form.get('phone'), 
-            purpose=request.form.get('purpose'), description=request.form.get('description'), 
-            is_active=False, status='pending'
-        )
-        db.session.add(new_user)
-        db.session.commit()
-        
-        log_activity("New Registration", f"New user {new_user.name} (@{new_user.username}) registered.", user_id=new_user.id)
-            
-        flash('Registration successful! Please wait for admin approval.', 'success')
-        return redirect(url_for('login'))
     return render_template('register.html')
 
 @app.route('/api/upload_photo', methods=['POST'])
@@ -674,16 +771,8 @@ def login():
         ).first()
         
         if user:
-            # Check for hashed match first
-            is_valid = False
-            if user.password.startswith('scrypt:') or user.password.startswith('pbkdf2:'):
-                is_valid = check_password_hash(user.password, password)
-            else:
-                # Fallback to plain text, and seamless upgrade
-                if user.password == password:
-                    is_valid = True
-                    user.password = generate_password_hash(password)
-                    db.session.commit()
+            # Check for hashed match
+            is_valid = check_password_hash(user.password, password)
             
             if is_valid:
                 if not user.is_active:
@@ -860,92 +949,112 @@ def book_seat():
 @login_required
 def approve_booking():
     if not current_user.is_admin: return jsonify({'success': False}), 403
-    data = request.get_json()
-    booking = Booking.query.get(data.get('booking_id'))
-    if booking:
-        # Allow admin to change seat/shift/amount during approval
-        booking.seat_id = str(data.get('seat_id', booking.seat_id))
-        booking.shift = data.get('shift', booking.shift)
-        booking.amount = int(data.get('amount', booking.amount or 0))
-        
-        start = data.get('start_date')
-        if start:
-            try:
-                booking.start_date = datetime.strptime(start, '%Y-%m-%d')
-            except: pass
+    try:
+        data = request.get_json()
+        booking = Booking.query.get(data.get('booking_id'))
+        if booking:
+            # Allow admin to change seat/shift/amount during approval
+            booking.seat_id = str(data.get('seat_id', booking.seat_id))
+            booking.shift = data.get('shift', booking.shift)
+            booking.amount = int(data.get('amount', booking.amount or 0))
             
-        expiry = data.get('expiry_date')
-        if expiry:
-            try:
+            start = data.get('start_date')
+            if start:
                 try:
-                    expiry_date = datetime.strptime(expiry, '%Y-%m-%d')
-                except:
-                    expiry_date = datetime.fromisoformat(expiry.replace(' ', 'T'))
-                booking.expires_at = expiry_date
-            except Exception as e:
-                print(f"Approval date error: {e}")
-        else:
-            booking.expires_at = datetime.now(IST).replace(tzinfo=None) + timedelta(days=30)
+                    booking.start_date = datetime.strptime(start, '%Y-%m-%d')
+                except: pass
+                
+            expiry = data.get('expiry_date')
+            if expiry:
+                try:
+                    try:
+                        expiry_date = datetime.strptime(expiry, '%Y-%m-%d')
+                    except:
+                        expiry_date = datetime.fromisoformat(expiry.replace(' ', 'T'))
+                    booking.expires_at = expiry_date
+                except Exception as e:
+                    print(f"Approval date error: {e}")
+            else:
+                booking.expires_at = datetime.now(IST).replace(tzinfo=None) + timedelta(days=30)
 
-        booking.status = 'approved'
-        
-        # Cross-shift conflict cleanup
-        if booking.shift == 'morning':
-            conflicting_shifts = ['morning', 'full']
-        elif booking.shift == 'evening':
-            conflicting_shifts = ['evening', 'full']
-        else: # full
-            conflicting_shifts = ['morning', 'evening', 'full']
+            booking.status = 'approved'
             
-        others = Booking.query.filter(
-            Booking.seat_id == booking.seat_id, 
-            Booking.shift.in_(conflicting_shifts), 
-            Booking.status == 'pending', 
-            Booking.id != booking.id
-        ).all()
-        for o in others: db.session.delete(o)
-        db.session.commit()
-        log_activity("Booking Approved", f"Seat {booking.seat_id} ({booking.shift}) approved for {booking.user.name} at ₹{booking.amount}.", user_id=booking.user_id)
-        return jsonify({'success': True})
+            # Cross-shift conflict cleanup
+            if booking.shift == 'morning':
+                conflicting_shifts = ['morning', 'full']
+            elif booking.shift == 'evening':
+                conflicting_shifts = ['evening', 'full']
+            else: # full
+                conflicting_shifts = ['morning', 'evening', 'full']
+                
+            others = Booking.query.filter(
+                Booking.seat_id == booking.seat_id, 
+                Booking.shift.in_(conflicting_shifts), 
+                Booking.status == 'pending', 
+                Booking.id != booking.id
+            ).all()
+            for o in others: db.session.delete(o)
+            
+            # Remove user from waiting room if they are in there
+            WaitingRoom.query.filter_by(user_id=booking.user_id).delete()
+            
+            db.session.commit()
+            log_activity("Booking Approved", f"Seat {booking.seat_id} ({booking.shift}) approved for {booking.user.name} at ₹{booking.amount}.", user_id=booking.user_id)
+            return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
     return jsonify({'success': False}), 404
 
 @app.route('/api/admin/reject', methods=['POST'])
 @login_required
 def reject_booking():
     if not current_user.is_admin: return jsonify({'success': False}), 403
-    data = request.get_json()
-    booking = Booking.query.get(data.get('booking_id'))
-    if booking:
-        user_name = booking.user.name
-        user_id = booking.user_id
-        db.session.delete(booking)
-        db.session.commit()
-        log_activity("Booking Rejected", f"Seat request for {user_name} was rejected.", user_id=user_id)
-        return jsonify({'success': True})
+    try:
+        data = request.get_json()
+        booking = Booking.query.get(data.get('booking_id'))
+        if booking:
+            user_name = booking.user.name
+            user_id = booking.user_id
+            db.session.delete(booking)
+            db.session.commit()
+            log_activity("Booking Rejected", f"Seat request for {user_name} was rejected.", user_id=user_id)
+            return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
     return jsonify({'success': False}), 404
 
 @app.route('/api/admin/remove', methods=['POST'])
 @login_required
 def remove_seat():
     if not current_user.is_admin: return jsonify({'success': False}), 403
-    data = request.get_json()
-    booking = Booking.query.filter_by(seat_id=data.get('seat_id'), shift=data.get('shift'), status='approved').first()
-    if booking:
-        wait = WaitingRoom(user_name=booking.user.name, removed_from_seat=booking.seat_id)
-        db.session.add(wait)
-        user_id = booking.user_id
-        seat_id = booking.seat_id
-        db.session.delete(booking)
-        db.session.commit()
-        log_activity("Seat Removed", f"User removed from seat {seat_id}.", user_id=user_id)
-        return jsonify({'success': True})
+    try:
+        data = request.get_json()
+        booking = Booking.query.filter_by(seat_id=data.get('seat_id'), shift=data.get('shift'), status='approved').first()
+        if booking:
+            user_id = booking.user_id
+            seat_id = booking.seat_id
+            
+            # Check if user already in waiting room
+            if not WaitingRoom.query.filter_by(user_id=user_id).first():
+                wait = WaitingRoom(user_id=user_id, removed_from_seat=seat_id)
+                db.session.add(wait)
+            
+            db.session.delete(booking)
+            db.session.commit()
+            log_activity("Seat Removed", f"User removed from seat {seat_id}.", user_id=user_id)
+            return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
     return jsonify({'success': False}), 404
 
 @app.route('/api/waiting_room')
 @login_required
 def get_waiting_room():
     waiting = WaitingRoom.query.all()
-    return jsonify([{'user_name': w.user_name, 'seat': w.removed_from_seat} for w in waiting])
+    return jsonify([{'user_name': w.user.name, 'seat': w.removed_from_seat} for w in waiting])
 
 # --- Admin Member Management API ---
 @app.route('/api/admin/user/<int:user_id>', methods=['GET'])
@@ -968,7 +1077,6 @@ def get_user_details(user_id):
         'profile_photo': user.profile_photo,
         'admin_note_1': user.admin_note_1,
         'admin_note_2': user.admin_note_2,
-        'password': user.password,
         'fathers_name': user.fathers_name or '',
         'address': user.address or '',
         'booking_id': booking.id if booking else None,
@@ -1063,7 +1171,7 @@ def add_user_admin():
                 user_id=new_user.id,
                 seat_id=str(seat_id),
                 shift=data.get('shift', 'morning'),
-                amount=int(data.get('amount', 400)),
+                amount=int(data.get('amount') or 400),
                 status='approved',
                 start_date=start_date,
                 expires_at=expiry_date

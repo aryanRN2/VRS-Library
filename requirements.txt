@@ -10,3 +10,5 @@ pandas
 openpyxl
 reportlab
 gunicorn
+flask-wtf
+flask-limiter

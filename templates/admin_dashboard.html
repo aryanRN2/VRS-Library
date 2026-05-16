@@ -1131,7 +1131,7 @@ async function sendReceiptWhatsApp(bookingId) {
     try {
         const res = await fetch('/api/admin/send_receipt_whatsapp', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
             body: JSON.stringify({ booking_id: bookingId })
         });
         const data = await res.json();
@@ -1250,7 +1250,7 @@ document.getElementById('add-user-form').onsubmit = async (e) => {
     try {
         const res = await fetch('/api/admin/user/add', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
             body: JSON.stringify(payload)
         });
         const data = await res.json();
@@ -1345,7 +1345,7 @@ async function sendWhatsApp(phone, message) {
     try {
         const res = await fetch('/api/admin/send_whatsapp', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
             body: JSON.stringify({ phone, message })
         });
         const data = await res.json();
@@ -1374,7 +1374,9 @@ function openEditModal(userId) {
             document.getElementById('edit-phone').value = user.phone;
             document.getElementById('edit-username').value = user.username;
             document.getElementById('edit-email').value = user.email || '';
-            document.getElementById('edit-password').value = user.password;
+            // Password is not sent from the backend for security. 
+            // The field will be blank by default, and only updated if the admin types something.
+            document.getElementById('edit-password').value = '';
             document.getElementById('edit-is-active').checked = user.is_active;
             document.getElementById('edit-start-date').value = user.start_date || '';
             document.getElementById('edit-expires-at').value = user.expires_at || '';
@@ -1511,7 +1513,7 @@ document.getElementById('edit-user-form').onsubmit = async function(e) {
     try {
         const res = await fetch('/api/admin/user/update', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
             body: JSON.stringify(payload)
         });
         
@@ -1559,7 +1561,7 @@ async function checkSeatAvailability(seatId, shift, userId, hintId = 'seat-avail
     try {
         const res = await fetch('/api/admin/check_seat', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
             body: JSON.stringify({ seat_id: seatId, shift: shift, user_id: userId })
         });
         const data = await res.json();
@@ -1598,7 +1600,7 @@ function deleteUser() {
     
     fetch('/api/admin/user/delete', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
         body: JSON.stringify({ user_id: userId })
     }).then(res => {
         if (res.ok) {

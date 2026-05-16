@@ -11,6 +11,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+        window.getCsrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    </script>
 </head>
 <body class="{{ 'home-page' if request.endpoint == 'index' else 'static-page' }}">
     {% if request.endpoint == 'index' %}

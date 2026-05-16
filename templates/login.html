@@ -20,6 +20,7 @@
         {% endwith %}
 
         <form method="POST" class="auth-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="input-field">
                 <i class="fas fa-user-circle"></i>
                 <input type="text" name="login_id" placeholder="Email or Username" required>
