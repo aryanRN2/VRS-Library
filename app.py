@@ -786,9 +786,14 @@ def update_profile():
     # Allow users to update specific fields
     user.username = data.get('username', user.username)
     user.phone = data.get('phone', user.phone)
-    user.fathers_name = data.get('fathers_name', user.fathers_name)
-    user.address = data.get('address', user.address)
-    user.email = data.get('email', user.email)
+    
+    # Sanitize nullable fields to store NULL instead of empty strings
+    if 'fathers_name' in data:
+        user.fathers_name = data.get('fathers_name', '').strip() or None
+    if 'address' in data:
+        user.address = data.get('address', '').strip() or None
+    if 'email' in data:
+        user.email = data.get('email', '').strip() or None
     
     db.session.commit()
     log_activity("Profile Updated", f"User {user.name} updated their profile details.", user_id=user.id)
@@ -1238,11 +1243,19 @@ def update_user():
         user.name = data.get('name', user.name)
         user.phone = data.get('phone', user.phone)
         user.username = data.get('username', user.username)
-        user.email = data.get('email', user.email)
+        
+        # Sanitize nullable fields to store NULL instead of empty strings
+        # This prevents UniqueViolation for empty email strings
+        if 'email' in data:
+            user.email = data.get('email', '').strip() or None
+            
         user.admin_note_1 = data.get('admin_note_1', user.admin_note_1)
         user.admin_note_2 = data.get('admin_note_2', user.admin_note_2)
-        user.fathers_name = data.get('fathers_name', user.fathers_name)
-        user.address = data.get('address', user.address)
+        
+        if 'fathers_name' in data:
+            user.fathers_name = data.get('fathers_name', '').strip() or None
+        if 'address' in data:
+            user.address = data.get('address', '').strip() or None
         
         # Status management: pending -> active/frozen
         is_active_toggle = bool(data.get('is_active'))
