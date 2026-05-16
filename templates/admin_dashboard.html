@@ -171,7 +171,6 @@
                                 <th style="width: 120px;">Status</th>
                                 <th style="width: 150px;">Booking</th>
                                 <th style="width: 100px;">Amount</th>
-                                <th style="width: 120px;">Password</th>
                                 <th style="width: 260px;">Actions</th>
                             </tr>
                         </thead>
@@ -238,9 +237,6 @@
                                     <div class="amount-badge">
                                         ₹<span id="row-amount-{{ user.id }}">{{ user.amount or 0 }}</span>
                                     </div>
-                                </td>
-                                <td>
-                                    <span class="password-text" id="row-pass-{{ user.id }}" style="font-family: monospace; font-size: 0.85rem; color: #475569; background: #f1f5f9; padding: 4px 8px; border-radius: 6px;">{{ user.password_plain or '---' }}</span>
                                 </td>
                                 <td>
                                     <div class="action-flex">
@@ -1529,7 +1525,6 @@ document.getElementById('edit-user-form').onsubmit = async function(e) {
             document.getElementById(`row-expiry-${userId}`).innerHTML = `<i class="fas fa-calendar-alt"></i> ${payload.expires_at || 'No Expiry'}`;
             document.getElementById(`row-note-${userId}`).innerText = payload.admin_note_1 || '';
             document.getElementById(`row-amount-${userId}`).innerText = payload.amount || 0;
-            document.getElementById(`row-pass-${userId}`).innerText = payload.password || document.getElementById(`row-pass-${userId}`).innerText;
             document.getElementById(`row-status-container-${userId}`).innerHTML = payload.is_active 
                 ? '<span class="status-tag active">Active</span>' 
                 : '<span class="status-tag inactive">Pending</span>';
@@ -1605,15 +1600,16 @@ function deleteUser() {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
         body: JSON.stringify({ user_id: userId })
-    }).then(res => {
+    }).then(async res => {
+        const data = await res.json();
         if (res.ok) {
             const row = document.getElementById(`user-row-${userId}`);
             if (row) row.remove();
             closeEditModal();
         } else {
-            alert('Delete failed');
+            alert('Delete failed: ' + (data.message || 'Unknown Error'));
         }
-    }).catch(() => alert('Server error'));
+    }).catch(e => alert('Server error: ' + e.message));
 }
 
 function setFilter(btn, status) {

@@ -89,6 +89,7 @@ class User(db.Model, UserMixin):
 
     # Relationship with Bookings (Cascade Delete ensures bookings are removed if user is deleted)
     bookings = db.relationship('Booking', backref='user', cascade='all, delete-orphan')
+    waiting_room_entry = db.relationship('WaitingRoom', backref='user', cascade='all, delete-orphan', uselist=False)
 
     @property
     def is_active(self):
@@ -128,8 +129,6 @@ class WaitingRoom(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     removed_from_seat = db.Column(db.String(10))
     
-    # Relationship
-    user = db.relationship('User', backref='waiting_room_entry', uselist=False)
 
 class ActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -342,7 +341,6 @@ def admin_dashboard():
             'expires_at': active_booking.expires_at.strftime('%d %b %Y') if active_booking and active_booking.expires_at else 'No Expiry',
             'amount': active_booking.amount if active_booking else 0,
             'admin_note_1': user.admin_note_1,
-            'password_plain': user.password_plain,
             'booking': active_booking.seat_id if active_booking else None,
             'shift': active_booking.shift if active_booking else None
         })
@@ -792,25 +790,39 @@ def download_receipt():
 @app.route('/api/user/update_profile', methods=['POST'])
 @login_required
 def update_profile():
-    data = request.get_json()
-    user = User.query.get(current_user.id)
-    if not user: return jsonify({'success': False}), 404
-    
-    # Allow users to update specific fields
-    user.username = data.get('username', user.username)
-    user.phone = data.get('phone', user.phone)
-    
-    # Sanitize nullable fields to store NULL instead of empty strings
-    if 'fathers_name' in data:
-        user.fathers_name = data.get('fathers_name', '').strip() or None
-    if 'address' in data:
-        user.address = data.get('address', '').strip() or None
-    if 'email' in data:
-        user.email = data.get('email', '').strip() or None
-    
-    db.session.commit()
-    log_activity("Profile Updated", f"User {user.name} updated their profile details.", user_id=user.id)
-    return jsonify({'success': True})
+    try:
+        data = request.get_json()
+        user = User.query.get(current_user.id)
+        if not user: return jsonify({'success': False}), 404
+        
+        # Check UNIQUE constraints for username and email
+        new_username = data.get('username', user.username)
+        if new_username and new_username != user.username:
+            if User.query.filter(User.username == new_username, User.id != user.id).first():
+                return jsonify({'success': False, 'message': 'Username already taken'}), 400
+        
+        new_email = data.get('email', '').strip() or None
+        if new_email and new_email != user.email:
+            if User.query.filter(User.email == new_email, User.id != user.id).first():
+                return jsonify({'success': False, 'message': 'Email already registered'}), 400
+        
+        # Allow users to update specific fields
+        user.username = new_username
+        user.email = new_email
+        user.phone = data.get('phone', user.phone)
+        
+        # Sanitize nullable fields to store NULL instead of empty strings
+        if 'fathers_name' in data:
+            user.fathers_name = data.get('fathers_name', '').strip() or None
+        if 'address' in data:
+            user.address = data.get('address', '').strip() or None
+        
+        db.session.commit()
+        log_activity("Profile Updated", f"User {user.name} updated their profile details.", user_id=user.id)
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Database error: {str(e)}'}), 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -970,34 +982,38 @@ def get_seats():
 @app.route('/api/book', methods=['POST'])
 @login_required
 def book_seat():
-    data = request.get_json()
-    seat_id = data.get('seat_id')
-    shift = data.get('shift')
-    
-    # RULE: One user can only have ONE active request or booking across ALL shifts
-    existing = Booking.query.filter_by(user_id=current_user.id).first()
-    if existing:
-        return jsonify({'success': False, 'message': 'You already have a seat request or booking. Please cancel it before making a new one.'}), 400
+    try:
+        data = request.get_json()
+        seat_id = data.get('seat_id')
+        shift = data.get('shift')
         
-    if shift == 'morning':
-        conflicting_shifts = ['morning', 'full']
-    elif shift == 'evening':
-        conflicting_shifts = ['evening', 'full']
-    else: # full
-        conflicting_shifts = ['morning', 'evening', 'full']
-        
-    if Booking.query.filter(Booking.seat_id == seat_id, Booking.shift.in_(conflicting_shifts), Booking.status == 'approved').first():
-        return jsonify({'success': False, 'message': 'Seat already booked for a conflicting shift.'}), 400
-        
-    if current_user.status != 'active':
-        return jsonify({'success': False, 'message': f'Your account is {current_user.status}. Only active members can make seat requests.'}), 403
-        
-    plan = data.get('plan', '1 Month')
-    new_booking = Booking(seat_id=seat_id, user_id=current_user.id, shift=shift, status='pending', requested_plan=plan)
-    db.session.add(new_booking)
-    db.session.commit()
-    log_activity("Seat Requested", f"User requested seat {seat_id} ({shift}).", user_id=current_user.id)
-    return jsonify({'success': True})
+        # RULE: One user can only have ONE active request or booking across ALL shifts
+        existing = Booking.query.filter_by(user_id=current_user.id).first()
+        if existing:
+            return jsonify({'success': False, 'message': 'You already have a seat request or booking. Please cancel it before making a new one.'}), 400
+            
+        if shift == 'morning':
+            conflicting_shifts = ['morning', 'full']
+        elif shift == 'evening':
+            conflicting_shifts = ['evening', 'full']
+        else: # full
+            conflicting_shifts = ['morning', 'evening', 'full']
+            
+        if Booking.query.filter(Booking.seat_id == seat_id, Booking.shift.in_(conflicting_shifts), Booking.status == 'approved').first():
+            return jsonify({'success': False, 'message': 'Seat already booked for a conflicting shift.'}), 400
+            
+        if current_user.status != 'active':
+            return jsonify({'success': False, 'message': f'Your account is {current_user.status}. Only active members can make seat requests.'}), 403
+            
+        plan = data.get('plan', '1 Month')
+        new_booking = Booking(seat_id=seat_id, user_id=current_user.id, shift=shift, status='pending', requested_plan=plan)
+        db.session.add(new_booking)
+        db.session.commit()
+        log_activity("Seat Requested", f"User requested seat {seat_id} ({shift}).", user_id=current_user.id)
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Database error: {str(e)}'}), 500
 
 @app.route('/api/admin/approve', methods=['POST'])
 @login_required
@@ -1378,15 +1394,23 @@ def update_user():
 @login_required
 def delete_user():
     if not current_user.is_admin: return jsonify({'success': False}), 403
-    data = request.get_json()
-    user = User.query.get(data.get('user_id'))
-    if user and not user.is_admin:
-        user_name = user.name
-        db.session.delete(user)
-        db.session.commit()
-        log_activity("User Deleted", f"Member {user_name} was removed from system.")
-        return jsonify({'success': True})
-    return jsonify({'success': False, 'message': 'Cannot delete admin or user not found'})
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        user = User.query.get(user_id)
+        
+        if user and not user.is_admin:
+            user_name = user.name
+            db.session.delete(user)
+            db.session.commit()
+            log_activity("User Deleted", f"Member {user_name} (ID: {user_id}) was removed from system.")
+            return jsonify({'success': True})
+        
+        return jsonify({'success': False, 'message': 'Cannot delete admin or user not found'}), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"Deletion error: {str(e)}")
+        return jsonify({'success': False, 'message': f"Database error: {str(e)}"}), 500
 
 if __name__ == '__main__':
     # Schema updated: fathers_name, address, start_date added.

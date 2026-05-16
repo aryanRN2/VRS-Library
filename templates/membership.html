@@ -105,77 +105,38 @@
             <div class="loading-state">Loading seats...</div>
         </div>
 
-        <!-- Profile Details Section -->
-        <div id="profile-details-modal" class="photo-mgmt-section hidden">
-            <div class="glass-card inner-card" style="max-width: 500px; width: 95%;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                    <h3 style="margin: 0;"><i class="fas fa-id-card"></i> Personal Details</h3>
-                    <button class="glass-btn small" onclick="toggleProfileModal()" style="padding: 0.2rem 0.6rem;">&times;</button>
+
+        <div class="administration-section">
+            <h2 class="section-title"><i class="fas fa-shield-alt"></i> Administration & Support</h2>
+            <div class="admin-cards-container">
+                <!-- Administrator Card -->
+                <div class="admin-card administrator">
+                    <div class="card-content">
+                        <div class="admin-icon"><i class="fas fa-user-tie"></i></div>
+                        <h3>Administrator</h3>
+                        <h4 class="admin-name">Shubham Maurya</h4>
+                        <p class="admin-desc">Contact for issues related to fees, seat allotment, receipts, issue dates, or any other membership management queries.</p>
+                        <div class="admin-contact">
+                            <a href="tel:+919161048864" class="contact-link"><i class="fas fa-phone"></i> Call Admin</a>
+                            <a href="https://wa.me/919161048864?text=Hello%20Admin,%20I%20am%20{{ current_user.name }}%20of%20shift%20{{ booking.shift if booking else 'N/A' }}%20and%20I%20want%20to%20report%20an%20issue%20regarding%20my%20seat/fees%20-%20" class="contact-link whatsapp" target="_blank"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+                        </div>
+                    </div>
                 </div>
-                
-                <div class="profile-form" style="text-align: left;">
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Username</label>
-                        <input type="text" id="user-username-input" value="{{ current_user.username }}" class="glass-input" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+
+                <!-- Superuser Card -->
+                <div class="admin-card superuser">
+                    <div class="card-content">
+                        <div class="admin-icon"><i class="fas fa-code"></i></div>
+                        <h3>Superuser / Developer</h3>
+                        <h4 class="admin-name">Aryan Maurya</h4>
+                        <p class="admin-desc">Contact for technical support, UI/UX improvements, website errors, or to provide feedback for system enhancements.</p>
+                        <div class="admin-contact">
+                            <a href="mailto:aryannsv@gmail.com?subject=VRS%20System%20Feedback&body=Hello%20Aryan,%20I%20am%20{{ current_user.name }}%20and%20I%20found%20this%20bug/error%20in%20the%20UI:%20" class="contact-link"><i class="fas fa-envelope"></i> Send Feedback</a>
+                            <a href="https://wa.me/994400693585?text=Hello%20Aryan,%20I%20am%20{{ current_user.name }}%20and%20I%20need%20technical%20support%20for%20the%20VRS%20Library%20site.%20Issue:%20" class="contact-link whatsapp" target="_blank"><i class="fab fa-whatsapp"></i> Tech Support</a>
+                        </div>
                     </div>
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Phone Number</label>
-                        <input type="text" id="user-phone-input" value="{{ current_user.phone }}" class="glass-input" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Father's Name</label>
-                        <input type="text" id="user-fathers-name" value="{{ current_user.fathers_name or '' }}" class="glass-input" placeholder="Enter Father's Name" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Full Address</label>
-                        <textarea id="user-address" class="glass-input" rows="3" placeholder="Enter Full Address" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0; resize: vertical;">{{ current_user.address or '' }}</textarea>
-                    </div>
-                    <div class="form-group" style="margin-bottom: 1.5rem;">
-                        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Email Address</label>
-                        <input type="email" id="user-email" value="{{ current_user.email or '' }}" class="glass-input" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-                    </div>
-                    
-                    <div class="upload-btns" style="display: flex; gap: 0.8rem;">
-                        <button id="save-profile-btn" class="glass-btn small active" onclick="updateUserProfile()" style="flex: 1;">
-                            <i class="fas fa-save"></i> Save Details
-                        </button>
-                        <button class="glass-btn small" onclick="toggleProfileModal(); togglePhotoUpload();" style="flex: 1;">
-                             <i class="fas fa-camera"></i> Change Photo
-                        </button>
-                    </div>
-                    <p id="profile-status" class="status-msg" style="margin-top: 1rem; font-size: 0.85rem; text-align: center;"></p>
                 </div>
             </div>
-        </div>
-
-        <!-- Photo Upload Section (Hidden by default) -->
-        <div id="photo-upload-container" class="photo-mgmt-section hidden">
-            <div class="glass-card inner-card">
-                <h3>Update Profile Photo</h3>
-                <div class="photo-preview-large" id="photo-preview-large">
-                    {% if current_user.profile_photo %}
-                        <img src="{{ current_user.profile_photo }}" id="current-photo-img">
-                    {% else %}
-                        <i class="fas fa-user-circle"></i>
-                    {% endif %}
-                </div>
-                <input type="file" id="dashboard-photo-input" accept="image/*" capture="user" class="hidden">
-                <div class="upload-btns">
-                    <button class="glass-btn small" onclick="document.getElementById('dashboard-photo-input').click()">
-                        <i class="fas fa-camera"></i> Open Camera
-                    </button>
-                    <button id="save-photo-btn" class="glass-btn small active" disabled onclick="uploadDashboardPhoto()">
-                        <i class="fas fa-save"></i> Save Changes
-                    </button>
-                </div>
-                <p id="upload-status" class="status-msg"></p>
-                <button class="text-link" onclick="togglePhotoUpload()">Close</button>
-            </div>
-        </div>
-
-        <div class="waiting-room-section">
-            <h2>Waiting Room</h2>
-            <div id="waiting-list" class="waiting-list"></div>
         </div>
 
         {% if current_user.is_admin %}
@@ -187,6 +148,75 @@
         {% endif %}
     </div>
 </section>
+
+<!-- Modals Relocated to Body Root to fix Viewport Centering -->
+<!-- Profile Details Section -->
+<div id="profile-details-modal" class="photo-mgmt-section hidden">
+    <div class="glass-card inner-card" style="max-width: 500px; width: 95%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="margin: 0;"><i class="fas fa-id-card"></i> Personal Details</h3>
+            <button class="glass-btn small" onclick="toggleProfileModal()" style="padding: 0.2rem 0.6rem;">&times;</button>
+        </div>
+        
+        <div class="profile-form" style="text-align: left;">
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Username</label>
+                <input type="text" id="user-username-input" value="{{ current_user.username }}" class="glass-input" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            </div>
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Phone Number</label>
+                <input type="text" id="user-phone-input" value="{{ current_user.phone }}" class="glass-input" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            </div>
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Father's Name</label>
+                <input type="text" id="user-fathers-name" value="{{ current_user.fathers_name or '' }}" class="glass-input" placeholder="Enter Father's Name" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            </div>
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Full Address</label>
+                <textarea id="user-address" class="glass-input" rows="3" placeholder="Enter Full Address" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0; resize: vertical;">{{ current_user.address or '' }}</textarea>
+            </div>
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.4rem;">Email Address</label>
+                <input type="email" id="user-email" value="{{ current_user.email or '' }}" class="glass-input" style="width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            </div>
+            
+            <div class="upload-btns" style="display: flex; gap: 0.8rem;">
+                <button id="save-profile-btn" class="glass-btn small active" onclick="updateUserProfile()" style="flex: 1;">
+                    <i class="fas fa-save"></i> Save Details
+                </button>
+                <button class="glass-btn small" onclick="toggleProfileModal(); togglePhotoUpload();" style="flex: 1;">
+                     <i class="fas fa-camera"></i> Change Photo
+                </button>
+            </div>
+            <p id="profile-status" class="status-msg" style="margin-top: 1rem; font-size: 0.85rem; text-align: center;"></p>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Upload Section -->
+<div id="photo-upload-container" class="photo-mgmt-section hidden">
+    <div class="glass-card inner-card">
+        <h3>Update Profile Photo</h3>
+        <div class="photo-preview-large" id="photo-preview-large">
+            {% if current_user.profile_photo %}
+                <img src="{{ current_user.profile_photo }}" id="current-photo-img">
+            {% else %}
+                <i class="fas fa-user-circle"></i>
+            {% endif %}
+        </div>
+        <input type="file" id="dashboard-photo-input" accept="image/*" capture="user" class="hidden">
+        <div class="upload-btns">
+            <button class="glass-btn small" onclick="document.getElementById('dashboard-photo-input').click()">
+                <i class="fas fa-camera"></i> Open Camera
+            </button>
+            <button id="save-photo-btn" class="glass-btn small active" disabled onclick="uploadDashboardPhoto()">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+        </div>
+        <p id="upload-status" class="status-msg"></p>
+        <button class="text-link" onclick="togglePhotoUpload()">Close</button>
+    </div>
+</div>
 
 <!-- Edit Member Modal (Admin Only) -->
 {% if current_user.is_authenticated and current_user.is_admin %}
@@ -201,7 +231,6 @@
             <input type="hidden" id="edit-user-id">
             
             <div class="edit-grid">
-                <!-- Left: Photo & Status -->
                 <div class="edit-sidebar">
                     <div class="edit-avatar-container">
                         <div id="edit-avatar-preview" class="avatar-large"></div>
@@ -226,25 +255,17 @@
                     </div>
                 </div>
                 
-                <!-- Right: Details & Notes -->
                 <div class="edit-details">
                     <div class="input-row">
                         <div class="form-group">
                             <label>Full Name</label>
-                            <div class="input-with-cut">
-                                <input type="text" id="edit-name" class="glass-input" required>
-                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-name').value=''">&times;</button>
-                            </div>
+                            <input type="text" id="edit-name" class="glass-input" required>
                         </div>
                         <div class="form-group">
                             <label>Phone Number</label>
-                            <div class="input-with-cut">
-                                <input type="text" id="edit-phone" class="glass-input" required>
-                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-phone').value=''">&times;</button>
-                            </div>
+                            <input type="text" id="edit-phone" class="glass-input" required>
                         </div>
                     </div>
-                    
                     <div class="input-row">
                         <div class="form-group">
                             <label>Username</label>
@@ -252,24 +273,19 @@
                         </div>
                         <div class="form-group">
                             <label>Email (Optional)</label>
-                            <div class="input-with-cut">
-                                <input type="email" id="edit-email" class="glass-input">
-                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-email').value=''">&times;</button>
-                            </div>
+                            <input type="email" id="edit-email" class="glass-input">
                         </div>
                     </div>
-                    
                     <div class="input-row">
                         <div class="form-group">
                             <label>Father's Name</label>
-                            <input type="text" id="edit-fathers-name" class="glass-input" placeholder="Father's Name">
+                            <input type="text" id="edit-fathers-name" class="glass-input">
                         </div>
                         <div class="form-group">
                             <label>Full Address</label>
-                            <input type="text" id="edit-address" class="glass-input" placeholder="Address">
+                            <input type="text" id="edit-address" class="glass-input">
                         </div>
                     </div>
-                    
                     <div class="input-row">
                         <div class="form-group">
                             <label>Membership Start</label>
@@ -280,7 +296,6 @@
                             <input type="datetime-local" id="edit-expires-at" class="glass-input">
                         </div>
                     </div>
-                    
                     <div class="input-row">
                         <div class="form-group">
                             <label>Assigned Shift</label>
@@ -292,54 +307,41 @@
                         </div>
                         <div class="form-group">
                             <label>Membership Amount (₹)</label>
-                            <input type="number" id="edit-amount" class="glass-input" placeholder="e.g. 400">
+                            <input type="number" id="edit-amount" class="glass-input">
                         </div>
                     </div>
-                    
                     <div class="input-row">
                         <div class="form-group">
                             <label>Assigned Seat (1-65)</label>
-                            <div style="position: relative;" class="input-with-cut">
-                                <input type="number" id="edit-seat-id" class="glass-input" min="1" max="65" placeholder="e.g. 15">
-                                <button type="button" class="check-avail-btn" onclick="triggerCheck()">Check</button>
-                                <button type="button" class="cut-btn" onclick="document.getElementById('edit-seat-id').value=''; document.getElementById('edit-seat-hint').innerHTML=''">&times;</button>
-                                <span id="edit-seat-hint" style="position: absolute; right: 80px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; font-weight: 700;"></span>
-                            </div>
+                            <input type="number" id="edit-seat-id" class="glass-input">
                         </div>
                     </div>
-                    
                     <div class="form-group">
-                        <label><i class="fas fa-comment-dots"></i> Admin Note 1</label>
+                        <label>Admin Note 1</label>
                         <textarea id="edit-note-1" class="glass-input" rows="2"></textarea>
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-comment-dots"></i> Admin Note 2</label>
+                        <label>Admin Note 2</label>
                         <textarea id="edit-note-2" class="glass-input" rows="2"></textarea>
                     </div>
                 </div>
             </div>
-            
             <div class="modal-footer">
-                <button type="button" class="glass-btn secondary" onclick="closeEditModal()" style="background: #f1f5f9; color: #64748b;">Cancel</button>
-                <button type="submit" class="premium-btn" id="save-user-btn" style="width: auto; padding: 0.8rem 2rem;">
-                    <i class="fas fa-save"></i> Save Changes
-                </button>
+                <button type="button" class="glass-btn secondary" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="premium-btn" id="save-user-btn">Save Changes</button>
             </div>
         </form>
     </div>
 </div>
 {% endif %}
+
 <div id="booking-modal" class="modal hidden">
     <div class="modal-content glass-card">
         <h3>Request Seat <span id="modal-seat-id"></span></h3>
         <p>Choose your allotment plan:</p>
         <div class="plan-selector">
-            <button class="plan-btn active" data-plan="3 Days Trial">
-                <i class="fas fa-clock"></i> 3 Days Trial
-            </button>
-            <button class="plan-btn" data-plan="1 Month">
-                <i class="fas fa-calendar-check"></i> 1 Month Subscription
-            </button>
+            <button class="plan-btn active" data-plan="3 Days Trial">3 Days Trial</button>
+            <button class="plan-btn" data-plan="1 Month">1 Month Subscription</button>
         </div>
         <div class="modal-btns">
             <button id="confirm-book" class="glass-btn">Submit Request</button>
@@ -348,7 +350,6 @@
     </div>
 </div>
 
-<!-- Admin Multi-Review Modal -->
 <div id="approval-modal" class="modal hidden">
     <div class="modal-content glass-card wide-modal">
         <h3>Seat <span id="approve-seat-id"></span>: Review Requests</h3>
@@ -357,41 +358,32 @@
             <hr>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 1rem;">
                 <div class="form-group">
-                    <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Seat Number</label>
-                    <input type="text" id="approve-seat-num" class="glass-input" style="margin: 0; padding: 0.6rem;">
+                    <label>Seat Number</label>
+                    <input type="text" id="approve-seat-num" class="glass-input">
                 </div>
                 <div class="form-group">
-                    <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Shift</label>
-                    <select id="approve-shift" class="glass-input" style="margin: 0; padding: 0.6rem;" onchange="updateDefaultFee()">
+                    <label>Shift</label>
+                    <select id="approve-shift" class="glass-input">
                         <option value="morning">Morning</option>
                         <option value="evening">Evening</option>
                         <option value="full">Full Day</option>
                     </select>
                 </div>
             </div>
-
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 1rem;">
                 <div class="form-group">
-                    <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Start Date</label>
-                    <input type="date" id="start-date-input" class="glass-input" style="margin: 0; padding: 0.6rem;" onchange="updateExpiryByPreset()">
+                    <label>Start Date</label>
+                    <input type="date" id="start-date-input" class="glass-input">
                 </div>
                 <div class="form-group">
-                    <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Expiry Date</label>
-                    <input type="date" id="expiry-date-input" class="glass-input" style="margin: 0; padding: 0.6rem;">
+                    <label>Expiry Date</label>
+                    <input type="date" id="expiry-date-input" class="glass-input">
                 </div>
             </div>
-
             <div class="form-group" style="margin-top: 1rem;">
-                <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">Fees (Amount)</label>
-                <input type="number" id="approve-amount" class="glass-input" style="margin: 0; padding: 0.6rem;" placeholder="400 or 800">
+                <label>Fees (Amount)</label>
+                <input type="number" id="approve-amount" class="glass-input">
             </div>
-
-            <p style="font-size: 0.8rem; margin: 1rem 0 0.5rem 0;">Adjust Period:</p>
-            <div class="preset-btns" style="margin-bottom: 1.5rem;">
-                <button class="preset-btn" data-days="1" onclick="updateExpiryByPreset(1)">1 Day Trial</button>
-                <button class="preset-btn active" data-days="30" onclick="updateExpiryByPreset(30)">1 Month</button>
-            </div>
-            
             <div class="modal-btns">
                 <button id="final-approve-btn" class="glass-btn">Complete Allotment</button>
                 <button id="back-to-list" class="glass-btn secondary">Back</button>
@@ -513,9 +505,109 @@ input[type="checkbox"]:checked + .toggle-slider:before { left: 23px; }
     
     .modal-content { width: 95%; padding: 1rem; }
 }
-.waiting-room-section { margin-top: 4rem; border-top: 1px solid var(--glass-border); padding-top: 2rem; }
-.waiting-list { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; }
-.waiting-item { background: var(--glass-bg); padding: 0.5rem 1rem; border-radius: 1rem; border: 1px solid var(--glass-border); font-size: 0.8rem; }
+/* Administration Section Styles */
+.administration-section {
+    margin-top: 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+.section-title {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    color: #1e293b;
+    font-size: 1.8rem;
+    font-weight: 800;
+}
+.admin-cards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+    padding-bottom: 2rem;
+}
+.admin-card {
+    position: relative;
+    border-radius: 24px;
+    padding: 2.5rem;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+}
+.admin-card:hover {
+    transform: translateY(-10px);
+}
+.admin-card.administrator {
+    border: 2px solid #3b82f6;
+    box-shadow: 0 10px 30px rgba(59, 130, 246, 0.1);
+}
+.admin-card.superuser {
+    border: 2px solid #fbbf24;
+    box-shadow: 0 10px 30px rgba(251, 191, 36, 0.2);
+    animation: gold-glow 3s infinite alternate;
+}
+@keyframes gold-glow {
+    from { box-shadow: 0 10px 30px rgba(251, 191, 36, 0.1); }
+    to { box-shadow: 0 10px 50px rgba(251, 191, 36, 0.4); }
+}
+.admin-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+.administrator .admin-icon { color: #3b82f6; }
+.superuser .admin-icon { color: #fbbf24; }
+.admin-card h3 {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+}
+.admin-name {
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    color: #1e293b;
+}
+.admin-desc {
+    font-size: 0.95rem;
+    color: #475569;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+.admin-contact {
+    display: flex;
+    gap: 1rem;
+}
+.contact-link {
+    flex: 1;
+    padding: 0.8rem;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: 0.3s;
+}
+.administrator .contact-link {
+    background: #3b82f6;
+    color: white;
+}
+.superuser .contact-link {
+    background: #fbbf24;
+    color: #1e293b;
+}
+.contact-link.whatsapp {
+    background: #22c55e;
+    color: white;
+}
+.contact-link:hover {
+    filter: brightness(1.1);
+    transform: scale(1.05);
+}
 
 .admin-footer-nav { margin-top: 3rem; display: flex; justify-content: center; border-top: 1px solid var(--glass-border); padding-top: 2rem; }
 
@@ -1099,9 +1191,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
                 body: JSON.stringify({ user_id: userId })
             });
-            if (res.ok) { closeEditModal(); loadSeats(); }
-        } catch (e) {}
+            const data = await res.json();
+            if (res.ok) { 
+                closeEditModal(); 
+                loadSeats(); 
+            } else {
+                alert('Delete failed: ' + (data.message || 'Unknown Error'));
+            }
+        } catch (e) {
+            alert('Connection error: ' + e.message);
+        }
     };
+
 
     window.uploadDashboardPhoto = async () => {
         if (!compressedData) return;
