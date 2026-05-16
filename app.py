@@ -1241,8 +1241,8 @@ def update_user():
             return jsonify({'success': False, 'message': 'Cannot edit details for a pending user. Please approve them first.'}), 400
         
         user.name = data.get('name', user.name)
-        user.phone = data.get('phone', user.phone)
-        user.username = data.get('username', user.username)
+        user.phone = data.get('phone', '').strip() or user.phone
+        user.username = data.get('username', '').strip() or user.username
         
         # Sanitize nullable fields to store NULL instead of empty strings
         # This prevents UniqueViolation for empty email strings
@@ -1270,9 +1270,9 @@ def update_user():
         
         user.is_active = is_active_toggle # Keep legacy boolean for compatibility
         
-        new_password = data.get('password')
+        new_password = data.get('password', '').strip()
         if new_password:
-            user.password = generate_password_hash(new_password.strip())
+            user.password = generate_password_hash(new_password)
         
         if data.get('profile_photo'):
             user.profile_photo = data.get('profile_photo')
