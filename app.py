@@ -245,9 +245,18 @@ def health_check():
     except Exception as e:
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # Log the traceback
+    # Pass through standard HTTP errors (like 404) without flashing
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException) and e.code == 404:
+        return e
+        
+    # Log the traceback for real crashes
     print("!!! GLOBAL ERROR CAUGHT !!!")
     traceback.print_exc()
     
@@ -255,11 +264,10 @@ def handle_exception(e):
     if request.path.startswith('/api/'):
         return jsonify({
             'success': False,
-            'message': str(e),
-            'trace': traceback.format_exc() if app.debug else None
+            'message': str(e)
         }), 500
         
-    # Standard request
+    # Standard request - only flash if it's not a standard 404
     flash(f'System Error: {str(e)}', 'danger')
     return redirect(url_for('index'))
 
