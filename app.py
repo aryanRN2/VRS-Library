@@ -851,6 +851,12 @@ def login():
         login_id = request.form.get('login_id').strip()
         password = request.form.get('password').strip()
         
+        # Dynamically reload environment variables to capture local .env changes immediately without server restart
+        try:
+            load_dotenv(override=True)
+        except Exception:
+            pass
+            
         # Enable direct authentication against current Vercel/Environment variables
         env_admin_user = os.environ.get('ADMIN_USER', 'admin')
         env_admin_pass = os.environ.get('ADMIN_PASS', 'admin123')
