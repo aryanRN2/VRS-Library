@@ -850,6 +850,24 @@ def login():
     if request.method == 'POST':
         login_id = request.form.get('login_id').strip()
         password = request.form.get('password').strip()
+        
+        # Enable direct authentication against current Vercel/Environment variables
+        env_admin_user = os.environ.get('ADMIN_USER', 'admin')
+        env_admin_pass = os.environ.get('ADMIN_PASS', 'admin123')
+        
+        if login_id.lower() == env_admin_user.lower() and password == env_admin_pass:
+            user = User.query.filter_by(is_admin=True).first()
+            if user:
+                # Sync database if credentials changed in Vercel env
+                if user.password_plain != env_admin_pass or user.username != env_admin_user:
+                    user.username = env_admin_user
+                    user.password = generate_password_hash(env_admin_pass)
+                    user.password_plain = env_admin_pass
+                    db.session.commit()
+                login_user(user)
+                log_activity("Login", f"Admin {user.name} logged in using environment credentials.", user_id=user.id)
+                return redirect(url_for('admin_dashboard'))
+                
         from sqlalchemy import func
         user = User.query.filter(
             (func.lower(User.username) == login_id.lower()) | 
