@@ -237,19 +237,31 @@ with app.app_context():
             print("Initializing first-time seats...")
             for i in range(1, 66):
                 db.session.add(Seat(id=str(i)))
+            db.session.commit()
             
-            if not User.query.filter_by(is_admin=True).first():
-                admin_username = os.environ.get('ADMIN_USER', 'admin')
-                admin_password = os.environ.get('ADMIN_PASS', 'admin123')
-                hashed_pw = generate_password_hash(admin_password)
-                db.session.add(User(
-                    username=admin_username, email='admin@vrs.com', 
-                    password=hashed_pw, password_plain=admin_password,
-                    name='VRS Admin', phone='0000000000', 
-                    is_active=True, is_admin=True, status='active'
-                ))
+        admin_user = User.query.filter_by(is_admin=True).first()
+        admin_username = os.environ.get('ADMIN_USER', 'admin')
+        admin_password = os.environ.get('ADMIN_PASS', 'admin123')
+        
+        if not admin_user:
+            print("Initializing admin user...")
+            hashed_pw = generate_password_hash(admin_password)
+            db.session.add(User(
+                username=admin_username, email='admin@vrs.com', 
+                password=hashed_pw, password_plain=admin_password,
+                name='VRS Admin', phone='0000000000', 
+                is_active=True, is_admin=True, status='active'
+            ))
             db.session.commit()
             print("Database setup complete.")
+        else:
+            if admin_user.password_plain != admin_password or admin_user.username != admin_username:
+                print("Updating admin credentials from env variables...")
+                admin_user.username = admin_username
+                admin_user.password = generate_password_hash(admin_password)
+                admin_user.password_plain = admin_password
+                db.session.commit()
+                print("Admin credentials updated from environment variables.")
     except Exception as e:
         print(f"Startup check failed: {e}")
         # In Vercel, we don't want to crash the whole app on startup if DB is momentarily down
