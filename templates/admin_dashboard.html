@@ -537,6 +537,14 @@
                                 <button type="button" class="cut-btn" onclick="document.getElementById('edit-seat-id').value=''; document.getElementById('seat-availability-hint').innerHTML=''">&times;</button>
                                 <span id="seat-availability-hint" style="position: absolute; right: 80px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; font-weight: 700;"></span>
                             </div>
+                            <div id="edit-seat-actions" style="margin-top: 8px; display: flex; gap: 10px;">
+                                <div id="reallocate-seat-btn" role="button" class="glass-btn small" style="display: none; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 0.75rem; padding: 6px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                                    <i class="fas fa-history"></i> Reallocate Old Seat (<span id="old-seat-num"></span>)
+                                </div>
+                                <div id="withdraw-seat-btn" role="button" class="glass-btn small" style="display: none; background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; font-size: 0.75rem; padding: 6px 12px; border-radius: 8px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                                    <i class="fas fa-minus-circle"></i> Withdraw Seat
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -1389,6 +1397,79 @@ function openEditModal(userId) {
             const preview = document.getElementById('edit-avatar-preview');
             preview.innerHTML = user.profile_photo ? `<img src="${user.profile_photo}">` : `<i class="fas fa-user-circle"></i>`;
             
+            // Store original seat ID & reset withdraw flags
+            document.getElementById('edit-user-modal').dataset.originalSeat = user.seat_id || '';
+            document.getElementById('edit-user-modal').dataset.withdrawSeat = 'false';
+
+            // Old seat reallocation button
+            const reallocateBtn = document.getElementById('reallocate-seat-btn');
+            if (reallocateBtn) {
+                if (user.last_seat_id) {
+                    reallocateBtn.style.display = 'inline-flex';
+                    document.getElementById('old-seat-num').innerText = user.last_seat_id;
+                    reallocateBtn.onclick = function() {
+                        document.getElementById('edit-seat-id').value = user.last_seat_id;
+                        document.getElementById('edit-shift').value = user.last_shift || 'morning';
+                        document.getElementById('edit-amount').value = user.last_amount || 0;
+                        
+                        const now = new Date();
+                        const expiry = new Date();
+                        expiry.setDate(now.getDate() + 30);
+                        
+                        const tzOffset = now.getTimezoneOffset() * 60000;
+                        const startStr = (new Date(now - tzOffset)).toISOString().slice(0, 16);
+                        const expiryStr = (new Date(expiry - tzOffset)).toISOString().slice(0, 16);
+                        
+                        document.getElementById('edit-start-date').value = startStr;
+                        document.getElementById('edit-expires-at').value = expiryStr;
+                        
+                        document.getElementById('edit-start-date').disabled = false;
+                        document.getElementById('edit-expires-at').disabled = false;
+                        document.getElementById('edit-shift').disabled = false;
+                        document.getElementById('edit-seat-id').disabled = false;
+                        document.getElementById('edit-amount').disabled = false;
+                        
+                        triggerCheck();
+                    };
+                } else {
+                    reallocateBtn.style.display = 'none';
+                }
+            }
+
+            // Withdraw Seat button
+            const withdrawBtn = document.getElementById('withdraw-seat-btn');
+            if (withdrawBtn) {
+                if (user.seat_id) {
+                    withdrawBtn.style.display = 'inline-flex';
+                    withdrawBtn.onclick = async function(e) {
+                        if (e) { e.preventDefault(); e.stopPropagation(); }
+                        const userId = document.getElementById('edit-user-id').value;
+                        try {
+                            const res = await fetch('/api/admin/user/update', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken()},
+                                body: JSON.stringify({
+                                    user_id: userId,
+                                    withdraw_seat: true,
+                                    seat_id: ''
+                                })
+                            });
+                            if (res.ok) {
+                                closeEditModal();
+                                window.location.reload();
+                            } else {
+                                const err = await res.json();
+                                alert("Withdrawal failed: " + err.message);
+                            }
+                        } catch (e) {
+                            alert("Connection error");
+                        }
+                    };
+                } else {
+                    withdrawBtn.style.display = 'none';
+                }
+            }
+            
             // UI Restriction: Disable seat fields for non-active users
             const isInactive = !user.is_active;
             document.getElementById('edit-start-date').disabled = isInactive;
@@ -1476,6 +1557,10 @@ document.getElementById('edit-user-form').onsubmit = async function(e) {
     const btn = document.getElementById('save-user-btn');
     btn.disabled = true; btn.innerText = 'Saving...';
     
+    const currentSeat = document.getElementById('edit-seat-id').value;
+    const originalSeat = document.getElementById('edit-user-modal').dataset.originalSeat || '';
+    const withdrawSeat = document.getElementById('edit-user-modal').dataset.withdrawSeat === 'true' || (!currentSeat && originalSeat);
+
     const payload = {
         user_id: document.getElementById('edit-user-id').value,
         name: document.getElementById('edit-name').value,
@@ -1489,11 +1574,12 @@ document.getElementById('edit-user-form').onsubmit = async function(e) {
         start_date: document.getElementById('edit-start-date').value,
         expires_at: document.getElementById('edit-expires-at').value,
         shift: document.getElementById('edit-shift').value,
-        seat_id: document.getElementById('edit-seat-id').value,
+        seat_id: currentSeat,
         amount: document.getElementById('edit-amount').value,
         admin_note_1: document.getElementById('edit-note-1').value,
         admin_note_2: document.getElementById('edit-note-2').value,
-        profile_photo: editCompressedPhoto
+        profile_photo: editCompressedPhoto,
+        withdraw_seat: !!withdrawSeat
     };
     
     // Mandatory Allotment Rules: Coupling Seat & Expiry

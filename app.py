@@ -88,6 +88,11 @@ class User(db.Model, UserMixin):
     admin_note_2 = db.Column(db.Text, nullable=True)
     password_plain = db.Column(db.String(255), nullable=True) # For admin visibility
 
+    # Reallocation fields
+    last_seat_id = db.Column(db.String(10), nullable=True)
+    last_shift = db.Column(db.String(20), nullable=True)
+    last_amount = db.Column(db.Integer, default=0)
+
     # Relationship with Bookings (Cascade Delete ensures bookings are removed if user is deleted)
     bookings = db.relationship('Booking', backref='user', cascade='all, delete-orphan')
     waiting_room_entry = db.relationship('WaitingRoom', backref='user', cascade='all, delete-orphan', uselist=False)
@@ -166,7 +171,10 @@ def ensure_columns_exist():
             'admin_note_1': 'TEXT',
             'admin_note_2': 'TEXT',
             'profile_photo': 'TEXT',
-            'is_admin': 'BOOLEAN DEFAULT FALSE'
+            'is_admin': 'BOOLEAN DEFAULT FALSE',
+            'last_seat_id': 'VARCHAR(10)',
+            'last_shift': 'VARCHAR(20)',
+            'last_amount': 'INTEGER DEFAULT 0'
         }
         # Booking table columns
         booking_cols = {
@@ -1069,6 +1077,11 @@ def approve_booking():
             # Remove user from waiting room if they are in there
             WaitingRoom.query.filter_by(user_id=booking.user_id).delete()
             
+            # Record last seat details on user
+            booking.user.last_seat_id = str(booking.seat_id)
+            booking.user.last_shift = booking.shift
+            booking.user.last_amount = booking.amount
+            
             db.session.commit()
             log_activity("Booking Approved", f"Seat {booking.seat_id} ({booking.shift}) approved for {booking.user.name} at ₹{booking.amount}.", user_id=booking.user_id)
             return jsonify({'success': True})
@@ -1102,10 +1115,28 @@ def remove_seat():
     if not current_user.is_admin: return jsonify({'success': False}), 403
     try:
         data = request.get_json()
-        booking = Booking.query.filter_by(seat_id=data.get('seat_id'), shift=data.get('shift'), status='approved').first()
+        seat_id_val = str(data.get('seat_id')) if data.get('seat_id') is not None else None
+        shift = data.get('shift', 'morning')
+        if shift == 'morning':
+            shift_filter = ['morning', 'full']
+        elif shift == 'evening':
+            shift_filter = ['evening', 'full']
+        else:
+            shift_filter = ['morning', 'evening', 'full']
+            
+        booking = Booking.query.filter(
+            Booking.seat_id == seat_id_val,
+            Booking.shift.in_(shift_filter),
+            Booking.status == 'approved'
+        ).first()
         if booking:
             user_id = booking.user_id
             seat_id = booking.seat_id
+            
+            # Record last seat details on user before deletion
+            booking.user.last_seat_id = booking.seat_id
+            booking.user.last_shift = booking.shift
+            booking.user.last_amount = booking.amount
             
             # Check if user already in waiting room
             if not WaitingRoom.query.filter_by(user_id=user_id).first():
@@ -1157,7 +1188,10 @@ def get_user_details(user_id):
         'seat_id': booking.seat_id if booking else '',
         'shift': booking.shift if booking else 'morning',
         'amount': booking.amount if booking else get_default_amount('morning'),
-        'status': user.status
+        'status': user.status,
+        'last_seat_id': user.last_seat_id or '',
+        'last_shift': user.last_shift or '',
+        'last_amount': user.last_amount or 0
     })
 
 @app.route('/api/admin/check_seat', methods=['POST'])
@@ -1250,6 +1284,12 @@ def add_user_admin():
                 expires_at=expiry_date
             )
             db.session.add(booking)
+            
+            # Record last seat details on the user
+            new_user.last_seat_id = str(seat_id)
+            new_user.last_shift = booking.shift
+            new_user.last_amount = booking.amount
+            
             db.session.commit()
             log_activity("Seat Allotted", f"Admin allotted seat {seat_id} to new user {new_user.name} during creation.", user_id=new_user.id)
         except Exception as e:
@@ -1340,6 +1380,18 @@ def update_user():
         # Update seat_id and shift - ONLY if the user is (or remains) ACTIVE
         seat_id = data.get('seat_id')
         shift = data.get('shift', 'morning')
+        withdraw_seat = data.get('withdraw_seat', False)
+        
+        # Withdraw seat logic: either explicitly requested or seat_id was cleared
+        if not seat_id or withdraw_seat:
+            active_booking = Booking.query.filter_by(user_id=user.id, status='approved').first()
+            if active_booking:
+                user.last_seat_id = active_booking.seat_id
+                user.last_shift = active_booking.shift
+                user.last_amount = active_booking.amount
+                
+                db.session.delete(active_booking)
+                log_activity("Seat Withdrawn", f"Seat {active_booking.seat_id} withdrawn from user {user.name} by admin.", user_id=user.id)
         
         if seat_id and new_status == 'active':
             # Ensure only ONE approved booking exists
@@ -1378,6 +1430,11 @@ def update_user():
                     start_str = data.get('start_date')
                     booking.start_date = datetime.fromisoformat(start_str.replace(' ', 'T'))
                 except: pass
+                
+            # Record last seat details on the user
+            user.last_seat_id = str(seat_id)
+            user.last_shift = shift
+            user.last_amount = booking.amount
         elif seat_id and new_status != 'active':
             # If they are trying to ALLOT a seat to a non-active user (who wasn't just frozen)
             # we should block it. But if they just froze the user, we ignore the seat_id in payload.
@@ -1416,4 +1473,5 @@ def delete_user():
 if __name__ == '__main__':
     # Schema updated: fathers_name, address, start_date added.
     # Library added: reportlab
-    app.run(debug=True, port=9090)
+    port = int(os.environ.get('PORT', 9090))
+    app.run(debug=True, port=port)
