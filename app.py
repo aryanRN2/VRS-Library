@@ -516,6 +516,8 @@ def get_finance_stats():
             approved_list.append({
                 'id': b.id,
                 'user_name': safe_str(u.name),
+                'username': u.username,
+                'password': u.password_plain or 'Contact admin',
                 'phone': safe_str(u.phone),
                 'amount': b.amount,
                 'seat_id': b.seat_id,
@@ -541,14 +543,22 @@ def send_receipt_whatsapp():
     if not booking: return jsonify({'success': False, 'message': 'Booking not found'}), 404
     
     # Format a professional receipt message
-    message = f"🌟 *VRS DIGITAL LIBRARY - PAYMENT RECEIPT* 🌟\n\n" \
-              f"Dear *{booking.user.name}*,\n" \
-              f"Your membership allotment is successfully confirmed.\n\n" \
-              f"📍 *Seat Number:* {booking.seat_id}\n" \
-              f"🕒 *Shift:* {booking.shift.capitalize()}\n" \
-              f"📅 *Validity:* {booking.start_date.strftime('%d %b %Y') if booking.start_date else 'Immediate'} to {booking.expires_at.strftime('%d %b %Y') if booking.expires_at else 'Permanent'}\n" \
-              f"💰 *Amount Paid:* ₹{booking.amount or 0}\n\n" \
-              f"Thank you for choosing VRS Digital Library. You can download your detailed PDF receipt from your dashboard anytime."
+    start_date_str = booking.start_date.strftime('%d %b %Y') if booking.start_date else 'Immediate'
+    end_date_str = booking.expires_at.strftime('%d %b %Y') if booking.expires_at else 'Permanent'
+    
+    message = (f"*VRS Digital Library - Payment Receipt*\n\n"
+               f"Hello *{booking.user.name}*,\n\n"
+               f"Your membership has been approved! Details:\n"
+               f"- Seat: *{booking.seat_id}*\n"
+               f"- Shift: *{booking.shift}*\n"
+               f"- Validity: {start_date_str} to {end_date_str}\n"
+               f"- Amount Paid: *₹{booking.amount or 0}*\n"
+               f"here is login credential \n"
+               f"username - {booking.user.username}\n"
+               f"password - {booking.user.password_plain or 'Contact admin'}\n"
+               f"https://vrs-library.vercel.app/login\n\n\n"
+               f"You can download your PDF receipt from your dashboard.\n\n"
+               f"Thank you!")
 
     # Process phone number
     phone = "".join(filter(str.isdigit, booking.user.phone))

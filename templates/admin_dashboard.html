@@ -1089,7 +1089,7 @@ async function loadFinanceData() {
                         </td>
                         <td style="font-weight: 700; color: #22c55e;">₹${item.amount}</td>
                         <td>
-                            <a href="https://wa.me/91${item.phone}?text=${encodeURIComponent(`*VRS Digital Library - Payment Receipt*\n\nHello *${item.user_name}*,\n\nYour membership has been approved! Details:\n- Seat: *${item.seat_id}*\n- Shift: *${item.shift}*\n- Validity: ${item.start_date} to ${item.expiry_date}\n- Amount Paid: *₹${item.amount}*\n\nYou can download your PDF receipt from your dashboard.\n\nThank you!`)}" target="_blank" class="receipt-btn">
+                            <a href="https://wa.me/91${item.phone}?text=${encodeURIComponent(`*VRS Digital Library - Payment Receipt*\n\nHello *${item.user_name}*,\n\nYour membership has been approved! Details:\n- Seat: *${item.seat_id}*\n- Shift: *${item.shift}*\n- Validity: ${item.start_date} to ${item.expiry_date}\n- Amount Paid: *₹${item.amount}*\nhere is login credential \nusername - ${item.username}\npassword - ${item.password}\nhttps://vrs-library.vercel.app/login\n\n\nYou can download your PDF receipt from your dashboard.\n\nThank you!`)}" target="_blank" class="receipt-btn">
                                 <i class="fab fa-whatsapp"></i> Send Receipt
                             </a>
                         </td>
