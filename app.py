@@ -1,6 +1,7 @@
 import os
 import requests
 import traceback
+import threading
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import pytz
@@ -216,57 +217,60 @@ def ensure_columns_exist():
     except Exception as e:
         print(f"Migration helper error: {e}")
 
-# Simplified initialization
-with app.app_context():
+# Simplified initialization (run in background daemon thread)
+def initialize_database():
     try:
-        # Just create tables if they don't exist
-        db.create_all()
-        
-        # Run our simple migration check
-        ensure_columns_exist()
-        
-        # Attempt to expand password column for existing Postgres databases
-        try:
-            db.session.execute(text('ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(255)'))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-        
-        # Check seats once - use a simpler check
-        if Seat.query.limit(1).count() == 0:
-            print("Initializing first-time seats...")
-            for i in range(1, 66):
-                db.session.add(Seat(id=str(i)))
-            db.session.commit()
+        with app.app_context():
+            # Just create tables if they don't exist
+            db.create_all()
             
-        admin_user = User.query.filter_by(is_admin=True).first()
-        admin_username = os.environ.get('ADMIN_USER', 'admin')
-        admin_password = os.environ.get('ADMIN_PASS', 'admin123')
-        
-        if not admin_user:
-            print("Initializing admin user...")
-            hashed_pw = generate_password_hash(admin_password)
-            db.session.add(User(
-                username=admin_username, email='admin@vrs.com', 
-                password=hashed_pw, password_plain=admin_password,
-                name='VRS Admin', phone='0000000000', 
-                is_active=True, is_admin=True, status='active'
-            ))
-            db.session.commit()
-            print("Database setup complete.")
-        else:
-            if admin_user.password_plain != admin_password or admin_user.username != admin_username:
-                print("Updating admin credentials from env variables...")
-                admin_user.username = admin_username
-                admin_user.password = generate_password_hash(admin_password)
-                admin_user.password_plain = admin_password
+            # Run our simple migration check
+            ensure_columns_exist()
+            
+            # Attempt to expand password column for existing Postgres databases
+            try:
+                db.session.execute(text('ALTER TABLE "user" ALTER COLUMN password TYPE VARCHAR(255)'))
                 db.session.commit()
-                print("Admin credentials updated from environment variables.")
+            except Exception:
+                db.session.rollback()
+            
+            # Check seats once - use a simpler check
+            if Seat.query.limit(1).count() == 0:
+                print("Initializing first-time seats...")
+                for i in range(1, 66):
+                    db.session.add(Seat(id=str(i)))
+                db.session.commit()
+                
+            admin_user = User.query.filter_by(is_admin=True).first()
+            admin_username = os.environ.get('ADMIN_USER', 'admin')
+            admin_password = os.environ.get('ADMIN_PASS', 'admin123')
+            
+            if not admin_user:
+                print("Initializing admin user...")
+                hashed_pw = generate_password_hash(admin_password)
+                db.session.add(User(
+                    username=admin_username, email='admin@vrs.com', 
+                    password=hashed_pw, password_plain=admin_password,
+                    name='VRS Admin', phone='0000000000', 
+                    is_active=True, is_admin=True, status='active'
+                ))
+                db.session.commit()
+                print("Database setup complete.")
+            else:
+                if admin_user.password_plain != admin_password or admin_user.username != admin_username:
+                    print("Updating admin credentials from env variables...")
+                    admin_user.username = admin_username
+                    admin_user.password = generate_password_hash(admin_password)
+                    admin_user.password_plain = admin_password
+                    db.session.commit()
+                    print("Admin credentials updated from environment variables.")
     except Exception as e:
         print(f"Startup check failed: {e}")
         # In Vercel, we don't want to crash the whole app on startup if DB is momentarily down
         # but we should log it.
         traceback.print_exc()
+
+threading.Thread(target=initialize_database, daemon=True).start()
 
 @app.route('/health')
 def health_check():
