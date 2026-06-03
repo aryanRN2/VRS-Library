@@ -1,36 +1,53 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<section class="hero" id="home">
-    <div class="hero-content">
-        <h1 id="hero-title">VRS<span>LIBRARY</span></h1>
-        <p class="tagline">Next-Gen Library Management Experience</p>
+<div class="hero-content-wrapper">
+    <!-- Brand Logo / Headline -->
+    <h1 class="brand-logo">VRS LIBRARY</h1>
+
+    <!-- Minimal Tagline -->
+    <p class="minimal-tagline">Crafting the future in focus</p>
+
+    <!-- CTA Buttons -->
+    <div class="btn-group">
+        <!-- About Library (Map Link) -->
+        <a href="https://maps.app.goo.gl/mpW3JwUdizNNcfyC9" target="_blank" class="liquid-btn">
+            <span class="liquid-btn-bg"></span>
+            <span class="liquid-btn-glass"></span>
+            <span class="liquid-btn-content">
+                <i class="fa-solid fa-map-location-dot"></i> About Library
+            </span>
+        </a>
+
+        <!-- Login or Dashboard (Dynamic) -->
+        {% if current_user.is_authenticated %}
+            {% if current_user.is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}" class="liquid-btn">
+                    <span class="liquid-btn-bg"></span>
+                    <span class="liquid-btn-glass"></span>
+                    <span class="liquid-btn-content">
+                        <i class="fa-solid fa-chart-line"></i> Go to Dashboard
+                    </span>
+                </a>
+            {% else %}
+                <a href="{{ url_for('membership') }}" class="liquid-btn">
+                    <span class="liquid-btn-bg"></span>
+                    <span class="liquid-btn-glass"></span>
+                    <span class="liquid-btn-content">
+                        <i class="fa-solid fa-user"></i> Go to Dashboard
+                    </span>
+                </a>
+            {% endif %}
+        {% else %}
+            <a href="{{ url_for('login') }}" class="liquid-btn">
+                <span class="liquid-btn-bg"></span>
+                <span class="liquid-btn-glass"></span>
+                <span class="liquid-btn-content">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login
+                </span>
+            </a>
+        {% endif %}
     </div>
-</section>
-
-<section class="content-section" id="options">
-    <div class="options-grid">
-        <div class="glass-card option-card">
-            <h2>About Library</h2>
-            <p>Experience the most premium learning environment. Visit us at our physical location for the ultimate study experience.</p>
-            <a href="https://maps.app.goo.gl/mpW3JwUdizNNcfyC9" target="_blank" class="glass-btn">Get Location</a>
-        </div>
-        
-        <div class="glass-card option-card featured">
-            <h2>Get a Membership</h2>
-            <p>Join our community and get access to your dedicated seat. Choose from various shifts to suit your schedule.</p>
-            <a href="{{ url_for('login') }}" class="glass-btn">Join Now</a>
-        </div>
-
-        <div class="glass-card option-card">
-            <h2>Renew Membership</h2>
-            <p>Continue your journey with us. Quick and easy renewal for existing members.</p>
-            <a href="{{ url_for('login') }}" class="glass-btn">Renew</a>
-        </div>
-    </div>
-</section>
-
-<section class="footer">
-    <p>&copy; 2026 VRS Library Management System</p>
-</section>
+</div>
 {% endblock %}
+

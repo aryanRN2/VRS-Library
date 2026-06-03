@@ -1,46 +1,44 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="auth-section">
-    <div class="glass-card auth-container">
-        <div class="auth-header">
-            <i class="fas fa-shield-halved main-icon"></i>
-            <h1>Welcome Back</h1>
-            <p>Secure access to your VRS dashboard.</p>
+<a href="/" class="brand-logo">VRS LIBRARY</a>
+
+<div class="hero-content-wrapper auth-wrapper">
+    <h1 class="auth-title">Sign In</h1>
+    <p class="minimal-tagline">Secure access to your VRS dashboard.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">
+            <i class="fas fa-circle-info"></i>
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" class="auth-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="input-field">
+            <i class="fas fa-user-circle"></i>
+            <input type="text" name="login_id" placeholder="Email or Username" required>
+        </div>
+        
+        <div class="input-field">
+            <i class="fas fa-lock"></i>
+            <input type="password" name="password" id="password" placeholder="Password" required>
+            <i class="fas fa-eye toggle-password" id="togglePassword"></i>
         </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }}">
-                <i class="fas fa-circle-info"></i>
-                <span>{{ message }}</span>
-              </div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
-
-        <form method="POST" class="auth-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="input-field">
-                <i class="fas fa-user-circle"></i>
-                <input type="text" name="login_id" placeholder="Email or Username" required>
-            </div>
-            
-            <div class="input-field">
-                <i class="fas fa-lock"></i>
-                <input type="password" name="password" id="password" placeholder="Password" required>
-                <i class="fas fa-eye toggle-password" id="togglePassword"></i>
-            </div>
-
-            <button type="submit" class="premium-btn">
-                <span>Sign In</span>
-                <i class="fas fa-right-to-bracket"></i>
-            </button>
-        </form>
-
-
-    </div>
-</section>
+        <button type="submit" class="liquid-btn" style="width: fit-content; margin-top: 1rem;">
+            <span class="liquid-btn-bg"></span>
+            <span class="liquid-btn-glass"></span>
+            <span class="liquid-btn-content">
+                Sign In <i class="fas fa-right-to-bracket"></i>
+            </span>
+        </button>
+    </form>
+</div>
 
 <script>
 const togglePassword = document.querySelector('#togglePassword');
@@ -60,124 +58,134 @@ if (urlParams.has('registered')) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert alert-success';
     alertDiv.innerHTML = '<i class="fas fa-check-circle"></i> <span>Registration complete! Please wait for admin approval.</span>';
-    document.querySelector('.auth-header').after(alertDiv);
+    const titleEl = document.querySelector('.auth-title');
+    if (titleEl) titleEl.after(alertDiv);
 }
 </script>
 
 <style>
-.toggle-password {
-    cursor: pointer;
-    margin-left: -30px;
-    margin-right: 0 !important;
-    z-index: 2;
-    color: #aaa;
-    transition: color 0.3s;
+.auth-wrapper {
+    max-width: 480px;
+    width: 100%;
 }
 
-.toggle-password:hover {
-    color: var(--accent-color);
+.auth-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(2.2rem, 6vw, 4.2rem);
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    color: #ffffff;
+    text-transform: uppercase;
+    line-height: 1.2;
+    margin-bottom: 2rem;
 }
-.auth-section {
-    padding-top: 80px;
+
+.auth-form {
     display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    background: radial-gradient(circle at top right, rgba(66, 133, 244, 0.05), transparent),
-                radial-gradient(circle at bottom left, rgba(234, 67, 53, 0.05), transparent);
+    flex-direction: column;
+    gap: 0.5rem;
 }
-
-.auth-container {
-    max-width: 450px;
-    width: 95%;
-    padding: 3.5rem;
-    animation: fadeIn 0.8s ease-out;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
-}
-
-.auth-header { margin-bottom: 2.5rem; text-align: center; }
-.main-icon { font-size: 3rem; color: var(--accent-color); margin-bottom: 1rem; }
-.auth-header h1 { font-size: 2.2rem; font-weight: 700; color: var(--text-color); margin-bottom: 0.5rem; }
-.auth-header p { color: #666; font-size: 1rem; }
-
-.auth-form { display: flex; flex-direction: column; gap: 1.2rem; }
 
 .input-field {
     position: relative;
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.6);
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    padding: 0 1.2rem;
-    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 0 1.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-bottom: 1.2rem;
 }
 
 .input-field:focus-within {
-    border-color: var(--accent-color);
-    background: #fff;
-    box-shadow: 0 0 0 4px rgba(66, 133, 244, 0.1);
+    border-color: #22d3ee;
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.15);
 }
 
-.input-field i { color: #aaa; margin-right: 1rem; font-size: 1.1rem; }
+.input-field i {
+    color: rgba(255, 255, 255, 0.4);
+    margin-right: 1.2rem;
+    font-size: 1.1rem;
+}
+
+.toggle-password {
+    cursor: pointer;
+    margin-left: auto;
+    margin-right: 0 !important;
+    z-index: 2;
+    color: rgba(255, 255, 255, 0.4) !important;
+    transition: color 0.3s;
+}
+
+.toggle-password:hover {
+    color: #22d3ee !important;
+}
+
 .input-field input {
     width: 100%;
-    height: 55px;
+    height: 58px;
     border: none;
     background: none;
     outline: none;
     font-size: 1rem;
-    color: var(--text-color);
-    font-family: inherit;
+    color: #ffffff;
+    font-family: 'Space Grotesk', sans-serif;
 }
 
-.premium-btn {
-    width: 100%;
-    height: 55px;
-    background: linear-gradient(135deg, #4285F4, #8E24AA);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    transition: all 0.3s ease;
-    margin-top: 1rem;
-}
-
-.premium-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(142, 36, 170, 0.3);
+.input-field input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
 }
 
 .alert {
-    padding: 1rem;
+    padding: 1.2rem;
     border-radius: 12px;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 0.9rem;
+    gap: 12px;
+    font-size: 0.95rem;
     font-weight: 500;
+    backdrop-filter: blur(5px);
 }
 
-.alert-danger { background: rgba(234, 67, 53, 0.1); color: #ea4335; border: 1px solid rgba(234, 67, 53, 0.2); }
-.alert-success { background: rgba(52, 168, 83, 0.1); color: #34a853; border: 1px solid rgba(52, 168, 83, 0.2); }
-.alert-warning { background: rgba(251, 188, 5, 0.1); color: #fbbc05; border: 1px solid rgba(251, 188, 5, 0.2); }
+.alert-danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
 
-.auth-footer { margin-top: 2rem; text-align: center; border-top: 1px solid var(--glass-border); padding-top: 1.5rem; font-size: 0.95rem; }
-.auth-footer a { color: var(--accent-color); font-weight: 600; text-decoration: none; margin-left: 5px; }
+.alert-success {
+    background: rgba(34, 197, 94, 0.15);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
 
-@media (max-width: 500px) {
-    .auth-container { padding: 2rem; }
+.alert-warning {
+    background: rgba(234, 179, 8, 0.15);
+    color: #fde047;
+    border: 1px solid rgba(234, 179, 8, 0.25);
+}
+
+.auth-footer {
+    margin-top: 2.5rem;
+    text-align: left;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.95rem;
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+.auth-footer a {
+    color: #22d3ee;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.auth-footer a:hover {
+    color: #ec4899;
+    text-shadow: 0 0 10px rgba(236, 72, 153, 0.4);
 }
 </style>
 {% endblock %}

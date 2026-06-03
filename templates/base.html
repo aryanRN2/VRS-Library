@@ -11,13 +11,27 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&display=swap" rel="stylesheet">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>
         window.getCsrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     </script>
 </head>
-<body class="{{ 'home-page' if request.endpoint == 'index' else 'static-page' }}">
-    {% if request.endpoint == 'index' %}
+<body class="{{ 'home-page' if request.endpoint in ['index', 'login', 'register'] else 'static-page' }}">
+    <!-- SVG Displacement Filter for Liquid Glass Buttons -->
+    <svg class="hidden" style="display: none;">
+      <defs>
+        <filter id="container-glass" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.03 0.03" numOctaves="1" seed="1" result="turbulence" />
+          <feGaussianBlur in="turbulence" stdDeviation="1" result="blurredNoise" />
+          <feDisplacementMap in="SourceGraphic" in2="blurredNoise" scale="10" xChannelSelector="R" yChannelSelector="B" result="displaced" />
+          <feGaussianBlur in="displaced" stdDeviation="3" result="finalBlur" />
+          <feComposite in="finalBlur" in2="finalBlur" operator="over" />
+        </filter>
+      </defs>
+    </svg>
+
+    {% if request.endpoint in ['index', 'login', 'register'] %}
     <div id="canvas-container"></div>
     {% endif %}
     
@@ -25,10 +39,10 @@
         {% block content %}{% endblock %}
     </main>
 
-    {% if request.endpoint == 'index' %}
+    {% if request.endpoint in ['index', 'login', 'register'] %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.0.1"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=1.0.2"></script>
     {% endif %}
 </body>
 </html>

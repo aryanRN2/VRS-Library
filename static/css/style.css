@@ -162,3 +162,189 @@ main {
         font-size: 4rem;
     }
 }
+
+/* ==========================================================================
+   Home Page Overhaul (WebGL Theme & Liquid Glass Buttons)
+   ========================================================================== */
+
+.home-page {
+    background-color: #000000;
+    color: #ffffff;
+}
+
+.home-page main {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 2rem 10vw;
+}
+
+.hero-content-wrapper {
+    max-width: 850px;
+    width: 100%;
+    text-align: left;
+    position: relative;
+    z-index: 2;
+    padding: 1rem 0;
+}
+
+.brand-logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(2.2rem, 6vw, 4.2rem);
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    color: #ffffff;
+    text-transform: uppercase;
+    line-height: 1.2;
+    margin-bottom: 2rem;
+    text-decoration: none;
+}
+
+.minimal-tagline {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(0.75rem, 1.5vw, 0.9rem);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.35em;
+    color: rgba(255, 255, 255, 0.45);
+    margin: 0 0 5rem 0;
+    line-height: 1.6;
+    text-align: left;
+}
+
+/* Status Pill */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.5rem 1.2rem;
+    border-radius: 9999px;
+    margin-bottom: 2rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #e5e5e5;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(5px);
+}
+
+.status-dot {
+    position: relative;
+    display: flex;
+    height: 8px;
+    width: 8px;
+}
+
+.status-dot-ping {
+    position: absolute;
+    display: inline-flex;
+    height: 100%;
+    width: 100%;
+    border-radius: 9999px;
+    background-color: #22c55e;
+    opacity: 0.75;
+    animation: status-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.status-dot-core {
+    position: relative;
+    display: inline-flex;
+    border-radius: 9999px;
+    height: 8px;
+    width: 8px;
+    background-color: #22c55e;
+}
+
+@keyframes status-ping {
+    75%, 100% {
+        transform: scale(2.8);
+        opacity: 0;
+    }
+}
+
+/* Button Layout */
+.btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+/* Liquid Glass Button Class */
+.liquid-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 3.5rem;
+    padding: 0 2.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #ffffff;
+    background: transparent;
+    border: none;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+    z-index: 1;
+    overflow: visible;
+}
+
+.liquid-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 10px 25px rgba(255, 255, 255, 0.08);
+}
+
+.liquid-btn:active {
+    transform: scale(0.98);
+}
+
+.liquid-btn-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 9999px;
+    z-index: -2;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.03), 
+                0 2px 6px rgba(0, 0, 0, 0.08), 
+                inset 3px 3px 0.5px -3.5px rgba(255, 255, 255, 0.09), 
+                inset -3px -3px 0.5px -3.5px rgba(255, 255, 255, 0.85), 
+                inset 1px 1px 1px -0.5px rgba(255, 255, 255, 0.6), 
+                inset -1px -1px 1px -0.5px rgba(255, 255, 255, 0.6), 
+                inset 0 0 6px 6px rgba(255, 255, 255, 0.12), 
+                inset 0 0 2px 2px rgba(255, 255, 255, 0.06), 
+                0 0 12px rgba(0, 0, 0, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+}
+
+.liquid-btn-glass {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 9999px;
+    z-index: -1;
+    overflow: hidden;
+    backdrop-filter: blur(12px) url("#container-glass");
+    -webkit-backdrop-filter: blur(12px) url("#container-glass");
+    pointer-events: none;
+}
+
+.liquid-btn-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
