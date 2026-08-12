@@ -9,7 +9,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 import pandas as pd
 import io
 
-load_dotenv()
+load_dotenv(override=True)
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_, text
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -34,9 +34,11 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'vrs-secret-key-developm
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-if os.environ.get('DATABASE_URL'):
+use_local_db = os.environ.get('USE_LOCAL_DB', '').lower() in ('true', '1', 'yes')
+db_url = os.environ.get('DATABASE_URL')
+
+if not use_local_db and db_url:
     # Fix for SQLAlchemy 1.4+ which requires 'postgresql://' instead of 'postgres://'
-    db_url = os.environ.get('DATABASE_URL')
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url
@@ -48,11 +50,12 @@ if os.environ.get('DATABASE_URL'):
     }
 elif os.environ.get('VERCEL'):
     # Vercel is serverless; SQLite in /tmp is NOT persistent.
-    # This is only a fallback to prevent 500 errors if DATABASE_URL is missing.
     print("WARNING: Running on Vercel without DATABASE_URL. Data will NOT persist.")
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/library.db'
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'library.db')
+    inst_db = os.path.join(basedir, 'instance', 'library.db')
+    db_file = inst_db if os.path.exists(inst_db) else os.path.join(basedir, 'library.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_file
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
@@ -214,6 +217,18 @@ def ensure_columns_exist():
                 print(f"Added column {col} to booking table.")
             except Exception:
                 db.session.rollback()
+
+        waiting_cols = {
+            'user_id': 'INTEGER',
+            'removed_from_seat': 'VARCHAR(20)'
+        }
+        for col, col_type in waiting_cols.items():
+            try:
+                db.session.execute(text(f'ALTER TABLE waiting_room ADD COLUMN {col} {col_type}'))
+                db.session.commit()
+                print(f"Added column {col} to waiting_room table.")
+            except Exception:
+                db.session.rollback()
     except Exception as e:
         print(f"Migration helper error: {e}")
 
@@ -257,13 +272,18 @@ def initialize_database():
                 db.session.commit()
                 print("Database setup complete.")
             else:
+                updated = False
+                if admin_user.status != 'active':
+                    admin_user.status = 'active'
+                    updated = True
                 if admin_user.password_plain != admin_password or admin_user.username != admin_username:
-                    print("Updating admin credentials from env variables...")
                     admin_user.username = admin_username
                     admin_user.password = generate_password_hash(admin_password)
                     admin_user.password_plain = admin_password
+                    updated = True
+                if updated:
                     db.session.commit()
-                    print("Admin credentials updated from environment variables.")
+                    print("Admin credentials/status updated from environment variables.")
     except Exception as e:
         print(f"Startup check failed: {e}")
         # In Vercel, we don't want to crash the whole app on startup if DB is momentarily down
@@ -881,10 +901,11 @@ def login():
                 user = User.query.filter_by(is_admin=True).first()
                 if user:
                     # Sync database credentials to match current env
-                    if user.password_plain != env_admin_pass or user.username != env_admin_user:
+                    if user.password_plain != env_admin_pass or user.username != env_admin_user or user.status != 'active':
                         user.username = env_admin_user
                         user.password = generate_password_hash(env_admin_pass)
                         user.password_plain = env_admin_pass
+                        user.status = 'active'
                         db.session.commit()
                     login_user(user)
                     log_activity("Login", f"Admin {user.name} logged in using environment credentials.", user_id=user.id)
@@ -990,6 +1011,28 @@ def get_seats():
         }
         if b.status == 'approved': seat_map[b.seat_id]['approved'] = data
         else: seat_map[b.seat_id]['pending'].append(data)
+
+    # Also map active members stored in User table with last_seat_id & last_shift
+    active_seat_users = User.query.filter(User.status == 'active', User.last_seat_id.isnot(None), User.last_seat_id != '').all()
+    for u in active_seat_users:
+        u_shift = u.last_shift or 'full'
+        if u_shift in shift_filter or u_shift == 'full':
+            if u.last_seat_id not in seat_map:
+                seat_map[u.last_seat_id] = {'approved': None, 'pending': []}
+            if not seat_map[u.last_seat_id]['approved']:
+                seat_map[u.last_seat_id]['approved'] = {
+                    'id': f'user-{u.id}',
+                    'user_id': u.id,
+                    'user': safe_str(u.name),
+                    'phone': safe_str(u.phone),
+                    'purpose': safe_str(u.purpose),
+                    'status': 'approved',
+                    'requested_plan': u_shift.capitalize() + ' Shift',
+                    'expires_at': 'Active',
+                    'profile_photo': u.profile_photo,
+                    'amount': u.last_amount or (800 if u_shift == 'full' else 400),
+                    'comment': u.admin_note_1
+                }
 
     # Ensure seats are initialized if they are missing
     if Seat.query.count() != 65:

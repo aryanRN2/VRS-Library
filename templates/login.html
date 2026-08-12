@@ -61,6 +61,22 @@ if (urlParams.has('registered')) {
     const titleEl = document.querySelector('.auth-title');
     if (titleEl) titleEl.after(alertDiv);
 }
+
+// Add loading state feedback on Sign In click
+const loginForm = document.querySelector('.auth-form');
+if (loginForm) {
+    loginForm.addEventListener('submit', function () {
+        const btn = loginForm.querySelector('.liquid-btn');
+        if (btn) {
+            const btnContent = btn.querySelector('.liquid-btn-content');
+            if (btnContent) {
+                btnContent.innerHTML = 'Signing In... <i class="fas fa-spinner fa-spin"></i>';
+            }
+            btn.style.opacity = '0.7';
+            btn.style.pointerEvents = 'none';
+        }
+    });
+}
 </script>
 
 <style>

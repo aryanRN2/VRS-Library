@@ -1,5 +1,8 @@
 .env
 library.db
+instance/
+scratch/
+server.log
 __pycache__/
 *.pyc
 .DS_Store
