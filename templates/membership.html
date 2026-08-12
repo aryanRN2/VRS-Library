@@ -1035,7 +1035,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!modal) return;
         modal.classList.remove('hidden');
         
-        fetch(`/api/admin/user/${userId}`)
+        const cleanId = String(userId).replace('user-', '');
+        fetch(`/api/admin/user/${cleanId}`)
             .then(res => res.json())
             .then(user => {
                 document.getElementById('edit-user-id').value = user.id;

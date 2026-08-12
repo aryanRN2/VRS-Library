@@ -1403,8 +1403,15 @@ def add_user_admin():
 def update_user():
     if not current_user.is_admin: return jsonify({'success': False}), 403
     try:
-        data = request.get_json()
-        user = User.query.get(data.get('user_id'))
+        raw_uid = data.get('user_id')
+        if not raw_uid:
+            return jsonify({'success': False, 'message': 'User ID is required'}), 400
+        try:
+            user_id = int(str(raw_uid).replace('user-', ''))
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid User ID format'}), 400
+            
+        user = User.query.get(user_id)
         if not user: return jsonify({'success': False, 'message': 'User not found'}), 404
         
         # BLOCK EDITING FOR PENDING USERS
